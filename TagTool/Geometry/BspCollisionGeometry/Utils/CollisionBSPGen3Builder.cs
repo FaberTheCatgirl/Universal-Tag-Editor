@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 using TagTool.Common;
 using TagTool.Tags;
 using TagTool.Commands.Common;
+using TagTool.Common.Logging;
+
+// Suppress warning for lowercase class names
+#pragma warning disable CS8981, IDE1006
 
 namespace TagTool.Geometry.BspCollisionGeometry.Utils
 {
@@ -228,7 +232,7 @@ namespace TagTool.Geometry.BspCollisionGeometry.Utils
                 {
                     float connection_quality = 0.0f;
                     if (connection_quality_is_bad(i, j, ref connection_quality))
-                        new TagToolWarning($"leaf {i} had bad connection {j} ({connection_quality})");
+                        Log.Warning($"leaf {i} had bad connection {j} ({connection_quality})");
                 }
             }
         }

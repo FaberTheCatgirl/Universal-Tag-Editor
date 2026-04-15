@@ -8,6 +8,7 @@ using TagTool.Cache;
 using TagTool.Cache.Monolithic;
 using TagTool.Commands.Common;
 using TagTool.Common;
+using TagTool.Common.Logging;
 using TagTool.Tags;
 
 namespace TagTool.Commands.Tags
@@ -66,6 +67,9 @@ namespace TagTool.Commands.Tags
 
         public void PerformSearch(CachedTag tag, string phrase)
         {
+            if (!Cache.TagCache.TagDefinitions.TagDefinitionExists(tag.Group))
+                return;
+
             using (var stream = Cache.OpenCacheRead())
             {
                 var definition = Cache.Deserialize(stream, tag);
@@ -75,7 +79,8 @@ namespace TagTool.Commands.Tags
 
         private static string ShortTagName(CachedTag tag)
         {
-            return $"{tag.Name}.{tag.Group.Tag}";
+            var prefix = string.IsNullOrEmpty(tag.Name) ? $"0x{tag.Index:X4}" : tag.Name;
+            return $"{prefix}.{tag.Group.Tag}";
         }
 
         private void DeepSearch(CachedTag tag, object definition, string phrase)
@@ -98,13 +103,13 @@ namespace TagTool.Commands.Tags
                         {
                             try
                             {
-                                var stringValue = Cache.StringTable.GetString(stringId);
+                                var stringValue = Cache.StringTable.GetString(stringId) ?? "";
                                 if (stringValue.ToLower().Contains(phrase))
                                     Console.WriteLine($"{outputPrefix}{path} = {stringValue}");
                             }
                             catch
                             {
-                                new TagToolWarning($"{outputPrefix}{path} invalid string id found! {path}");
+                                Log.Warning($"{outputPrefix}{path} invalid string id found! {path}");
                             }
                         }
                         break;
@@ -122,6 +127,16 @@ namespace TagTool.Commands.Tags
                         {
                             foreach (var fieldInfo in tagStruct.GetTagFieldEnumerable(Cache.Version, Cache.Platform))
                                 DeepSearch(fieldInfo.GetValue(tagStruct), path.Length > 0 ? $"{path}.{fieldInfo.Name}" : fieldInfo.Name);
+                        }
+                        break;
+                    case IBounds bounds:
+                        {
+                            var boundString = data.ToString().Trim(new char[] { '{', '}', ' ' });
+                            boundString = boundString.Replace("Lower: ", "");
+                            boundString = boundString.Replace(" Upper: ", "");
+
+                            if (boundString.ToLower().Contains(phrase))
+                                Console.WriteLine($"{outputPrefix}{path} = {data}");
                         }
                         break;
                     default:

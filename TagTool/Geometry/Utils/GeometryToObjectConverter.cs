@@ -16,6 +16,10 @@ using TagTool.Tags.Definitions;
 using TagTool.Tags.Resources;
 using TagTool.Commands.CollisionModels.OffsetCollisonBsp;
 using TagTool.Commands.CollisionModels;
+using TagTool.Porting;
+using static TagTool.Porting.PortingContext;
+using TagTool.Porting.Gen3;
+using System.Runtime.InteropServices;
 
 namespace TagTool.Geometry.Utils
 {
@@ -36,19 +40,18 @@ namespace TagTool.Geometry.Utils
         private RealPoint3d GeometryOffset;
         private RenderGeometryCompression OriginalCompression;
         private bool HasValidCollisions = true;
-        public PortTagCommand PortTag { get; private set; }
+        public PortingContext PortContext { get; private set; }
 
         public GeometryToObjectConverter(
             GameCacheHaloOnlineBase destCache, Stream destStream, GameCache sourceCache,
-            Stream sourceStream, Scenario scenario, int structureBspIndex)
+            Stream sourceStream, Scenario scenario, int structureBspIndex, PortingContext portContext)
         {
             DestCache = destCache;
             DestStream = destStream;
             SourceCache = sourceCache;
             SourceStream = sourceStream;
             StructureBspIndex = structureBspIndex;
-            PortTag = new PortTagCommand(destCache, sourceCache);
-            PortTag.SetFlags(PortTagCommand.PortingFlags.Default);
+            PortContext = portContext;
 
             Scenario = scenario;
             StructureBspIndex = structureBspIndex;
@@ -105,7 +108,7 @@ namespace TagTool.Geometry.Utils
             else
                 geoID = StructureBsp.InstancedGeometryInstances[geometryIndex].Name;
 
-            string geoname = SourceCache.StringTable.GetString(geoID);
+            string geoname = SourceCache.StringTable.GetString(geoID).Replace('|','-');
 
             var tagName = $"objects\\{scenarioFolder}\\instanced\\{bspindex}{geometryIndex}_{geoname}";
 
@@ -180,7 +183,7 @@ namespace TagTool.Geometry.Utils
                         //fix mopp code offsets to origin
                         foreach (var mopp in collisionModel.Regions[0].Permutations[0].BspMoppCodes)
                         {
-                            mopp.Info.Offset = new RealQuaternion(
+                            mopp.Info.Offset = new RealVector4d(
                                 mopp.Info.Offset.I - GeometryOffset.X,
                                 mopp.Info.Offset.J - GeometryOffset.Y,
                                 mopp.Info.Offset.K - GeometryOffset.Z,
@@ -231,7 +234,7 @@ namespace TagTool.Geometry.Utils
                 ObjectType = new GameObjectType16() { Halo3ODST = GameObjectTypeHalo3ODST.Scenery }, // TODO: generic object type
                 BoundingRadius = boundingSphere,
                 AccelerationScale = 1.0f,
-                SweetenerSize = GameObject.SweetenerSizeValue.Large,
+                SweetenerSize = GameObject.SweetenerSizeValue.Medium,
                 MultiplayerObject = new List<GameObject.MultiplayerObjectBlock>()
                 {
                     new GameObject.MultiplayerObjectBlock() { DefaultSpawnTime = 30, DefaultAbandonTime = 60 }
@@ -307,12 +310,12 @@ namespace TagTool.Geometry.Utils
                 var sbspMaterial = StructureBsp.CollisionMaterials[mapping.Key];
                 model.Materials[mapping.Value] = new Model.Material()
                 {
-                    MaterialName = StringId.Invalid,
+                    MaterialName = StringId.Empty,
                     MaterialType = Model.Material.MaterialTypeValue.Dirt,
                     DamageSectionIndex = -1,
                     RuntimeDamagerMaterialIndex = -1,
                     RuntimeCollisionMaterialIndex = 0,
-                    GlobalMaterialName = StringId.Invalid,
+                    GlobalMaterialName = StringId.Empty,
                     GlobalMaterialIndex = sbspMaterial.RuntimeGlobalMaterialIndex,
                 };
             }
@@ -331,11 +334,7 @@ namespace TagTool.Geometry.Utils
                     DefaultTranslation = node.DefaultTranslation,
                     DefaultRotation = node.DefaultRotation,
                     DefaultScale = node.DefaultScale,
-                    Inverse = new RealMatrix4x3(
-                        node.InverseForward.I, node.InverseForward.J, node.InverseForward.K,
-                        node.InverseLeft.I, node.InverseLeft.J, node.InverseLeft.K,
-                        node.InverseUp.I, node.InverseUp.J, node.InverseUp.K,
-                        node.InversePosition.X, node.InversePosition.Y, node.InversePosition.Z)
+                    Inverse = node.Inverse
                 });
             }
 
@@ -390,6 +389,8 @@ namespace TagTool.Geometry.Utils
                     foreach (var bspPhysics in instancedGeometryInstance.BspPhysics)
                     {
                         var data = ConvertData(bspPhysics);
+                        data.GeometryShape.Scale = 1.0f;
+                        data.MoppBvTreeShape.Scale = 1.0f;
                         permutation.BspPhysics.Add(new CollisionBspPhysicsDefinition()
                         {
                             GeometryShape = data.GeometryShape,
@@ -512,10 +513,7 @@ namespace TagTool.Geometry.Utils
                 DefaultTranslation = new RealPoint3d(0, 0, 0),
                 DefaultRotation = new RealQuaternion(0, 0, 0, -1),
                 DefaultScale = 1.0f,
-                InverseForward = new RealVector3d(1, 0, 0),
-                InverseLeft = new RealVector3d(0, 1, 0),
-                InverseUp = new RealVector3d(0, 0, 1),
-                InversePosition = new RealPoint3d(0, 0, 0)
+                Inverse = RealMatrix4x3.Identity
             });
             renderModel.Regions = new List<RenderModel.Region>();
             renderModel.Regions.Add(new RenderModel.Region()
@@ -676,7 +674,7 @@ namespace TagTool.Geometry.Utils
             data = data.DeepClone();
 
             var resourceStreams = new Dictionary<ResourceLocation, Stream>();
-            data = (T)PortTag.ConvertData(DestStream, SourceStream, resourceStreams, data, null, "");
+            data = (T)PortContext.ConvertData(DestStream, SourceStream, data, null, "");
             foreach (var stream in resourceStreams)
                 stream.Value.Close();
 
@@ -724,7 +722,7 @@ namespace TagTool.Geometry.Utils
             using (var outStream = new MemoryStream())
             {
                 var outVertexStream = VertexStreamFactory.Create(DestCache.Version, DestCache.Platform, outStream);
-                foreach (var vertex in rigidVertices)
+                foreach(ref RigidVertex vertex in CollectionsMarshal.AsSpan(rigidVertices))
                 {
                     vertex.Position = compressor.CompressPosition(vertex.Position);
                     vertex.Texcoord = compressor.CompressUv(vertex.Texcoord);

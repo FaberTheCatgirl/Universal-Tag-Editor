@@ -5,6 +5,7 @@ using TagTool.Commands.Common;
 using TagTool.Tags.Definitions;
 using TagTool.Shaders.ShaderMatching;
 using static TagTool.Tags.Definitions.RenderMethod.RenderMethodPostprocessBlock;
+using TagTool.Common.Logging;
 
 namespace TagTool.Shaders.ShaderGenerator
 {
@@ -57,7 +58,7 @@ namespace TagTool.Shaders.ShaderGenerator
                 }
 
                 if (textureConstant.Bitmap == null)
-                    new TagToolWarning($"Texture constant \"{name}\" has no default bitmap. This needs to be set or this shader can become corrupted ingame");
+                    Log.Warning($"Texture constant \"{name}\" has no default bitmap. This needs to be set or this shader can become corrupted ingame");
 
                 textureConstants.Add(textureConstant);
             }
@@ -201,13 +202,13 @@ namespace TagTool.Shaders.ShaderGenerator
             ["inv_alpha_blend"] = BlendModeValue.InverseAlphaBlend,
         };
 
-        public BlendModeValue GetAlphaBlendMode(ShaderMatcherNew.Rmt2Descriptor rmt2Descriptor, RenderMethodDefinition rmdf, GameCacheHaloOnlineBase Cache)
+        public BlendModeValue GetAlphaBlendMode(byte[] options, RenderMethodDefinition rmdf, GameCacheHaloOnlineBase Cache)
         {
             for (int i = 0; i < rmdf.Categories.Count; i++)
             {
                 if (Cache.StringTable.GetString(rmdf.Categories[i].Name) == "blend_mode")
                 {
-                    string blendMode = Cache.StringTable.GetString(rmdf.Categories[i].ShaderOptions[rmt2Descriptor.Options[i]].Name);
+                    string blendMode = Cache.StringTable.GetString(rmdf.Categories[i].ShaderOptions[options[i]].Name);
 
                     if (BlendModeBinding.TryGetValue(blendMode, out BlendModeValue alphaBlendMode))
                         return alphaBlendMode;
@@ -218,6 +219,11 @@ namespace TagTool.Shaders.ShaderGenerator
             }
 
             return BlendModeValue.Opaque;
+        }
+
+        public BlendModeValue GetAlphaBlendMode(Rmt2Descriptor rmt2Descriptor, RenderMethodDefinition rmdf, GameCacheHaloOnlineBase Cache)
+        {
+            return GetAlphaBlendMode(rmt2Descriptor.Options, rmdf, Cache);
         }
     }
 }

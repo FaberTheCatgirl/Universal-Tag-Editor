@@ -1,5 +1,6 @@
 using TagTool.Common;
 using System;
+using TagTool.Tags.Definitions;
 
 namespace TagTool.Cache
 {
@@ -70,6 +71,9 @@ namespace TagTool.Cache
         /// <returns>The string list index, or -1 if none.</returns>
         public int StringIDToIndex(StringId stringId)
         {
+            if (stringId.Value == uint.MaxValue)
+                return 0;
+
             var setMin = GetMinSetStringIndex();
             var setMax = GetMaxSetStringIndex();
             var setOffsets = GetSetOffsets();
@@ -97,9 +101,8 @@ namespace TagTool.Cache
         /// Converts a string list index to a stringID value.
         /// </summary>
         /// <param name="index">The index.</param>
-        /// <param name="version">The version of the stringID. Halo 3 By default.</param>
         /// <returns>The stringID value, or <see cref="StringId.Invalid"/> if none.</returns>
-        public StringId IndexToStringID(int index, CacheVersion version = CacheVersion.Halo3Retail)
+        public StringId IndexToStringID(int index)
         {
             if (index < 0)
                 return StringId.Invalid;

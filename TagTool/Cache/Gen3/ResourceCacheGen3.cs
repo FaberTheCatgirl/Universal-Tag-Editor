@@ -8,6 +8,8 @@ using TagTool.Tags;
 using TagTool.Tags.Resources;
 using TagTool.BlamFile;
 using TagTool.Cache.Resources;
+using TagTool.Extensions;
+using System.Security.AccessControl;
 
 namespace TagTool.Cache.Gen3
 {
@@ -61,6 +63,9 @@ namespace TagTool.Cache.Gen3
                 LoadResourceCache();
 
             if (resourceReference == null)
+                return null;
+
+            if (resourceReference.Gen3ResourceID == DatumHandle.None)
                 return null;
 
             return ResourceGestalt.TagResources[resourceReference.Gen3ResourceID.Index];
@@ -298,6 +303,8 @@ namespace TagTool.Cache.Gen3
         public override object GetResourceDefinition(TagResourceReference resourceReference, Type definitionType)
         {
             var tagResource = GetTagResourceFromReference(resourceReference);
+            if (!IsResourceValid(tagResource))
+                return null;
 
             byte[] resourceDefinitionData = new byte[tagResource.DefinitionDataLength];
             Array.Copy(ResourceGestalt.DefinitionData, tagResource.DefinitionDataOffset, resourceDefinitionData, 0, tagResource.DefinitionDataLength);
@@ -307,15 +314,14 @@ namespace TagTool.Cache.Gen3
             Memory<byte> primaryResourceData = GetPrimaryResource(resourceReference.Gen3ResourceID);
             Memory<byte> secondaryResourceData = GetSecondaryResource(resourceReference.Gen3ResourceID);
 
-            if (primaryResourceData.IsEmpty && secondaryResourceData.IsEmpty && (definitionType ==  typeof(BitmapTextureInteropResource) || definitionType == typeof(BitmapTextureInterleavedInteropResource)))
-                return null;
+            //if (primaryResourceData.IsEmpty && secondaryResourceData.IsEmpty && (definitionType ==  typeof(BitmapTextureInteropResource) || definitionType == typeof(BitmapTextureInterleavedInteropResource)))
+            //    return null;
 
             if (primaryResourceData.IsEmpty)
                 primaryResourceData = new byte[0];
 
             if (secondaryResourceData.IsEmpty)
                 secondaryResourceData = new byte[0];
-
 
             using (var definitionDataStream = new MemoryStream(resourceDefinitionData))
             using (var dataStream = new FixedMemoryStream(primaryResourceData))
@@ -334,6 +340,8 @@ namespace TagTool.Cache.Gen3
         private Memory<byte> ReadSegmentData(ResourceData resource, int pageIndex, int offset, int sizeIndex)
         {
             var page = ResourceLayoutTable.Pages[pageIndex];
+            if (page.BlockAddress == uint.MaxValue || page.CompressedBlockSize == 0)
+                return Memory<byte>.Empty;
 
             byte[] decompressed;
             if(!ResourcePageCache.TryGetPage(pageIndex, out decompressed))
@@ -431,60 +439,67 @@ namespace TagTool.Cache.Gen3
                 cacheFilePath = Path.Combine(Cache.Directory.FullName, cacheFilePath);
 
                 if (cacheFilePath != Cache.CacheFile.FullName)
-                {
-                    if (Cache.SharedCacheFiles.ContainsKey(cacheFilePath))
-                        cache = Cache.SharedCacheFiles[cacheFilePath];
-                    else
-                    {
-                        var newCache = new FileInfo(cacheFilePath);
-                        using (var newCacheStream = newCache.OpenRead())
-                        using (var newCacheReader = new EndianReader(newCacheStream))
-                        {
-                            var newMapFile = new MapFile();
-                            newMapFile.Read(newCacheReader);
-                            cache = Cache.SharedCacheFiles[cacheFilePath] = new GameCacheGen3(newMapFile, newCache);
-                        }
-                    }
-                }
+                    cache = OpenSharedCacheFile(cacheFilePath);
             }
 
-            var decompressed = new byte[page.UncompressedBlockSize];
-
-            using (var cacheStream = cache.OpenCacheRead())
-            using (var reader = new EndianReader(cacheStream, Cache.Endianness))
+            uint blockOffset = 0;
+            if (page.SharedCacheIndex < 0 || (ResourceLayoutTable.SharedFiles[page.SharedCacheIndex].Flags & 1) != 0)
             {
-                uint blockOffset = 0;
-                if (page.SharedCacheIndex < 0 || (ResourceLayoutTable.SharedFiles[page.SharedCacheIndex].Flags & 1) != 0)
-                {
-                    var sectionTable = ((CacheFileHeaderGen3)cache.BaseMapFile.Header).SectionTable;
-                    blockOffset = sectionTable.GetOffset(CacheFileSectionType.ResourceSection, page.BlockAddress);
-                }
-                else
-                {
-                    blockOffset = ResourceLayoutTable.SharedFiles[page.SharedCacheIndex].BlockOffset + page.BlockAddress;
-                }
-
-                reader.SeekTo(blockOffset);
-                var compressed = reader.ReadBytes(BitConverter.ToInt32(BitConverter.GetBytes(page.CompressedBlockSize), 0));
-
-                if (resource.ResourceTypeIndex != -1 && GetResourceTypeName(resource) == "sound_resource_definition")
-                    return compressed;
-
-                if (page.CompressionCodecIndex == -1)
-                    return compressed;
-                else
-                    using (var readerDeflate = new DeflateStream(new MemoryStream(compressed), CompressionMode.Decompress))
-                        readerDeflate.Read(decompressed, 0, BitConverter.ToInt32(BitConverter.GetBytes(page.UncompressedBlockSize), 0));
+                var sectionTable = ((CacheFileHeaderGen3)cache.BaseMapFile.Header).SectionTable;
+                blockOffset = sectionTable.GetOffset(CacheFileSectionType.ResourceSection, page.BlockAddress);
+            }
+            else
+            {
+                blockOffset = ResourceLayoutTable.SharedFiles[page.SharedCacheIndex].BlockOffset + page.BlockAddress;
             }
 
-            return decompressed;
+            using var cacheStream = cache.OpenCacheRead();
+            var pageStream = new RangeStream(cacheStream, blockOffset, page.CompressedBlockSize);
+
+            if (page.CompressionCodecIndex == -1)
+            {
+                byte[] compressed = new byte[page.CompressedBlockSize];
+                pageStream.ReadExactly(compressed);
+                return compressed;
+            }
+            else
+            {
+                var decompressed = new byte[page.UncompressedBlockSize];
+
+                using var readerDeflate = new DeflateStream(pageStream, CompressionMode.Decompress);
+                readerDeflate.ReadExactly(decompressed);
+                return decompressed;
+            }
         }
 
-        public override object GetBitmapTextureInteropResource(object value)
+        private GameCacheGen3 OpenSharedCacheFile(string cacheFilePath)
         {
-            throw new NotImplementedException();
+            lock (Cache.SharedCacheFiles)
+            {
+                if (!Cache.SharedCacheFiles.TryGetValue(cacheFilePath, out GameCacheGen3 cache))
+                {
+                    var newCacheFile = new FileInfo(cacheFilePath);
+                    using var newCacheReader = new EndianReader(newCacheFile.OpenRead());
+                    var newMapFile = new MapFile();
+                    newMapFile.Read(newCacheReader);
+                    cache = Cache.SharedCacheFiles[cacheFilePath] = new GameCacheGen3(newMapFile, newCacheFile);
+                }
+                return cache;
+            }
+        }
+
+        public override bool IsResourceValid(TagResourceReference resourceReference)
+        {
+            ResourceData resource = GetTagResourceFromReference(resourceReference);
+            if (!IsResourceValid(resource))
+                return false;
+
+            if (resource.SegmentIndex == -1)
+                return false;
+
+            var segment = ResourceLayoutTable.Sections[resource.SegmentIndex];
+
+            return resource.DefinitionDataLength > 0 || segment.RequiredPageIndex != -1 || segment.OptionalPageIndex != -1;
         }
     }
-
-    
 }

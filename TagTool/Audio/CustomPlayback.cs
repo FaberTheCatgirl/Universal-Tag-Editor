@@ -7,11 +7,11 @@ using TagTool.Tags;
 
 namespace TagTool.Audio
 {
-    [TagStructure(Size = 0x34, MaxVersion = CacheVersion.Halo2Vista)]
+    [TagStructure(Size = 0x34, MaxVersion = CacheVersion.Halo2PC)]
     [TagStructure(Size = 0x48, MinVersion = CacheVersion.Halo3Retail, MaxVersion = CacheVersion.Halo3ODST)]
     [TagStructure(Size = 0x54, MinVersion = CacheVersion.HaloOnlineED)]
     public class CustomPlayback : TagStructure
-	{
+    {
         public List<PlatformSoundOverrideMixbins> OverrideMixbins;
 
         public FlagsValue Flags;
@@ -67,7 +67,7 @@ namespace TagTool.Audio
 
         [TagStructure(Size = 0x48)]
         public class FilterBlock : TagStructure
-		{
+        {
             public FilterTypeValue FilterType;
 
             // [0,7]
@@ -137,7 +137,7 @@ namespace TagTool.Audio
             public FilterParameters GainModulation;
         }
 
-        [TagStructure(Size = 0x28, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+        [TagStructure(Size = 0x28, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
         [TagStructure(Size = 0x48, MinVersion = CacheVersion.Halo3Beta)]
         public class SoundEffectPlaybackBlock : TagStructure
         {
@@ -148,7 +148,7 @@ namespace TagTool.Audio
             public byte[] Unknown;
             public List<PlatformSoundEffectCollectionBlock> SoundEffectCollections;
 
-            [TagStructure(Size = 0x10, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+            [TagStructure(Size = 0x10, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
             [TagStructure(Size = 0x18, MinVersion = CacheVersion.Halo3Beta)]
             public class SoundEffectComponentBlock : TagStructure
             {
@@ -172,14 +172,14 @@ namespace TagTool.Audio
                 }
             }
 
-            [TagStructure(Size = 0xC, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+            [TagStructure(Size = 0xC, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
             [TagStructure(Size = 0x10, MinVersion = CacheVersion.Halo3Beta)]
             public class SoundEffectOverridesBlock : TagStructure
             {
                 public StringId Name;
                 public List<SoundEffectOverrideParametersBlock> Overrides;
 
-                [TagStructure(Size = 0x20, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+                [TagStructure(Size = 0x20, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
                 [TagStructure(Size = 0x24, MinVersion = CacheVersion.Halo3Beta)]
                 public class SoundEffectOverrideParametersBlock : TagStructure
                 {
@@ -191,7 +191,7 @@ namespace TagTool.Audio
                     public float RealValue;
                     public MappingFunctionBlock FunctionValue;
 
-                    [TagStructure(Size = 0x8, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+                    [TagStructure(Size = 0x8, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
                     [TagStructure(Size = 0xC, MinVersion = CacheVersion.Halo3Beta)]
                     public class MappingFunctionBlock : TagStructure
                     {
@@ -206,7 +206,7 @@ namespace TagTool.Audio
                 }
             }
 
-            [TagStructure(Size = 0x14, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+            [TagStructure(Size = 0x14, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
             [TagStructure(Size = 0x1C, MinVersion = CacheVersion.Halo3Beta)]
             public class PlatformSoundEffectCollectionBlock : TagStructure
             {
@@ -214,7 +214,7 @@ namespace TagTool.Audio
                 public List<PlatformSoundEffectFunctionBlock> LowFrequencyInput;
                 public int SoundEffectOverrides;
 
-                [TagStructure(Size = 0x1C, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+                [TagStructure(Size = 0x1C, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
                 [TagStructure(Size = 0x28, MinVersion = CacheVersion.Halo3Beta)]
                 public class PlatformSoundEffectBlock : TagStructure
                 {
@@ -236,7 +236,7 @@ namespace TagTool.Audio
                     }
                 }
 
-                [TagStructure(Size = 0x10, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+                [TagStructure(Size = 0x10, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
                 [TagStructure(Size = 0x14, MinVersion = CacheVersion.Halo3Beta)]
                 public class PlatformSoundEffectFunctionBlock : TagStructure
                 {
@@ -261,7 +261,7 @@ namespace TagTool.Audio
                         Rolloff
                     }
 
-                    [TagStructure(Size = 0x8, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+                    [TagStructure(Size = 0x8, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
                     [TagStructure(Size = 0xC, MinVersion = CacheVersion.Halo3Beta)]
                     public class MappingFunctionBlock : TagStructure
                     {
@@ -274,6 +274,56 @@ namespace TagTool.Audio
                         }
                     }
                 }
+            }
+        }
+    }
+
+    [TagStructure(Size = 0x2C, MinVersion = CacheVersion.HaloReach)]
+    public class CustomPlaybackReach : TagStructure
+    {
+        public PlatformSoundEffectFlagsDefinition Flags;
+        [TagField(ValidTags = new[] { "srad" })]
+        public CachedTag RadioEffect;
+        public List<PlatformSoundPlaybackLowpassBlockStruct> LowpassEffect;
+        public List<PlatformSoundPlaybackComponentBlockStruct> SoundComponents;
+
+        [Flags]
+        public enum PlatformSoundEffectFlagsDefinition : uint
+        {
+            TurnOffInSplitscreen = 1 << 0,
+            OnlyTurnOnInFirstPerson = 1 << 1
+        }
+
+        [TagStructure(Size = 0x10)]
+        public class PlatformSoundPlaybackLowpassBlockStruct : TagStructure
+        {
+            public float Attack; // seconds
+            public float Release; // seconds
+            public GlobalSoundLowpassBlock Settings;
+
+            [TagStructure(Size = 0x8)]
+            public class GlobalSoundLowpassBlock : TagStructure
+            {
+                public float CutoffFrequency; // Hz
+                public float OutputGain; // dB
+            }
+        }
+
+        [TagStructure(Size = 0x18)]
+        public class PlatformSoundPlaybackComponentBlockStruct : TagStructure
+        {
+            [TagField(ValidTags = new[] { "scmb", "snd!", "lsnd" })]
+            public CachedTag Sound;
+            public float Gain; // additional attenuation to sound (dB)
+            public PlatformSoundPlaybackComponentFlags Flags;
+
+            [Flags]
+            public enum PlatformSoundPlaybackComponentFlags : uint
+            {
+                DontPlayAtStart = 1 << 0,
+                PlayOnStop = 1 << 1,
+                PlayAlternate = 1 << 2,
+                SyncWithOriginLoopingSound = 1 << 3
             }
         }
     }

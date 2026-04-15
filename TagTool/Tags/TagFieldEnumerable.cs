@@ -6,6 +6,8 @@ using System.Reflection;
 using System.Collections;
 using TagTool.Common;
 using TagTool.Commands.Common;
+using System.Runtime.CompilerServices;
+using TagTool.Common.Logging;
 
 namespace TagTool.Tags
 {
@@ -46,12 +48,30 @@ namespace TagTool.Tags
 		/// </summary>
 		public int Count => TagFieldInfos.Count;
 
+		//standard .NET pattern, allows avoidance of boxing, and inlining better
+		public struct Enumerator : IEnumerator<TagFieldInfo>
+		{
+			private List<TagFieldInfo>.Enumerator enumerator;
+            public TagFieldInfo Current => enumerator.Current;
+            object IEnumerator.Current => enumerator.Current;
+			public void Dispose() => enumerator.Dispose();
+			public bool MoveNext() => enumerator.MoveNext();
+			void IEnumerator.Reset() => ((IEnumerator<TagFieldInfo>)enumerator).Reset();
+        }
+
 		/// <summary>
 		/// Gets an <see cref="IEnumerator{T}"/> over the <see cref="Tags.TagFieldInfo"/> <see cref="List{T}"/>.
 		/// </summary>
 		/// <returns></returns>
-		public IEnumerator<TagFieldInfo> GetEnumerator() => TagFieldInfos.GetEnumerator();
-		IEnumerator IEnumerable.GetEnumerator() => TagFieldInfos.GetEnumerator();
+		public Enumerator GetEnumerator()
+		{
+			var impl = TagFieldInfos.GetEnumerator();
+			//we use Unsafe.As to avoid having to expose a constructor which takes the enumerator, since this would expose implementation details
+			//it's safe since we have a struct with exactly 1 field of the same type
+			return Unsafe.As<List<TagFieldInfo>.Enumerator, Enumerator>(ref impl);
+		}
+		IEnumerator<TagFieldInfo> IEnumerable<TagFieldInfo>.GetEnumerator() => GetEnumerator();
+		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
 		/// <summary>
 		/// An indexer into the <see cref="Tags.TagFieldInfo"/> <see cref="List{T}"/>.
@@ -72,20 +92,18 @@ namespace TagTool.Tags
 			// hierarchy and add any fields belonging to tag structures.
 			foreach (var type in Info.Types.Reverse<Type>())
 			{
-				// Ensure that fields are in declaration order - GetFields does NOT guarantee 
-				foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly).OrderBy(i => i.MetadataToken))
+				foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly))
 				{
-					var attr = TagStructure.GetTagFieldAttribute(type, field, Info.Version, Info.CachePlatform);
+					var attr = GetTagFieldAttribute(field, Info.Version, Info.CachePlatform);
+					if (attr == null)
+						continue;
 
-                    if (CacheVersionDetection.TestAttribute(attr, Info.Version, Info.CachePlatform))
-                    {
-						CreateTagFieldInfo(field, attr, Info.Version, Info.CachePlatform, ref offset);
-                    }
+					CreateTagFieldInfo(field, attr, Info.Version, Info.CachePlatform, ref offset);
 				}
 			}
 
 #if DEBUG
-			uint expectedSize = TagStructure.GetStructureSize(Info.Types[0], Info.Version, Info.CachePlatform);
+			uint expectedSize = Info.TotalSize;
 			if(Info.Structure.Align > 0)
 				offset = offset + (Info.Structure.Align - 1) & ~(Info.Structure.Align - 1);
 			if (Info.Structure.Align > 0)
@@ -93,9 +111,24 @@ namespace TagTool.Tags
 
 			var typename = Info.Types[0].FullName.Replace("TagTool.", "").Replace("Tags.Definitions.", "");
 			if (offset != expectedSize)
-				new TagToolWarning($"Bad Size. Version: {Info.Version}:{Info.CachePlatform}, Type: '{typename}', Expected: 0x{expectedSize:X}, Actual: 0x{offset:X}");
+				Log.Warning($"Bad Size. Version: {Info.Version}:{Info.CachePlatform}, Type: '{typename}', Expected: 0x{expectedSize:X}, Actual: 0x{offset:X}");
 #endif
 		}
+
+        private static TagFieldAttribute GetTagFieldAttribute(FieldInfo field, CacheVersion version, CachePlatform platform)
+        {
+            var attributes = (TagFieldAttribute[])field.GetCustomAttributes<TagFieldAttribute>(false);
+			if (attributes.Length == 0)
+				return TagFieldAttribute.Default;
+
+            foreach (var attr in attributes)
+            {
+                if (CacheVersionDetection.TestAttribute(attr, version, platform))
+                    return attr;
+            }
+
+			return null;
+        }
 
         /// <summary>
         /// Creates and adds a <see cref="Tags.TagFieldInfo"/> to the <see cref="Tags.TagFieldInfo"/> <see cref="List{T}"/>.
@@ -147,19 +180,16 @@ namespace TagTool.Tags
 
 		private static void ValidateEnumRequiments(FieldInfo field, TagFieldAttribute attribute, CacheVersion targetVersion, CachePlatform cachePlatform)
 		{
-			if (field.FieldType.IsGenericType && field.FieldType.GetGenericTypeDefinition() == typeof(FlagBits<>))
+			if (field.FieldType.IsGenericType && field.FieldType.GetGenericTypeDefinition() == typeof(BitFlags<>))
 			{
 				var enumType = field.FieldType.GenericTypeArguments[0];
 				var info = TagEnum.GetInfo(enumType, targetVersion, cachePlatform);
 
                 if (!info.IsVersioned)
-					throw new Exception("FlagBits Enum must have a 'TagEnum' attribute with IsVersioned=True");
+					throw new Exception("BitFlags Enum must have a 'TagEnum' attribute with IsVersioned=True");
                 
                 if (attribute.EnumType == null)
-                    throw new Exception("FlagBits Enum must have the 'EnumType' TagField attribute set");
-
-				if (!VersionedEnum.IsSufficientStorageType(info.Type, attribute.EnumType, targetVersion, cachePlatform))
-					throw new Exception($"FlagBits  enum 'EnumType' TagField attribute is not large enough to store all the members for cache version: '{targetVersion}', platform: '{cachePlatform}'");
+                    throw new Exception("BitFlags Enum must have the 'EnumType' TagField attribute set");
 			}
 			else if(field.FieldType.IsEnum)
 			{
@@ -169,9 +199,6 @@ namespace TagTool.Tags
 				{
 					if (attribute.EnumType == null)
 						throw new Exception("Versioned Enum must have the 'EnumType' TagField attribute set");
-
-					if (!VersionedEnum.IsSufficientStorageType(info.Type, attribute.EnumType, targetVersion, cachePlatform))
-						throw new Exception($"Versioned Enum 'EnumType' TagField attribute is not large enough to store all the members for cache version: '{targetVersion}', platform: '{cachePlatform}'");
 				}
 			}
 		}

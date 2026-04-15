@@ -8,7 +8,7 @@ using TagTool.Geometry;
 
 namespace TagTool.Shaders
 {
-    /// <summary>
+    /*/// <summary>
     /// Utility class for converting shader bytecode between rendering pipelines.
     /// </summary>
     public static class ShaderConverter
@@ -409,5 +409,5 @@ namespace TagTool.Shaders
 
             return D3DCompiler.Assemble(newShader);
         }
-    }
+    }*/
 }

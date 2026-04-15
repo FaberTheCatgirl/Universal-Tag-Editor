@@ -352,9 +352,9 @@ namespace TagTool.Tags.Definitions
                 [TagField(MinVersion = CacheVersion.HaloReach)]
                 public RealVector3d HeadingReach;
                 [TagField(MinVersion = CacheVersion.HaloReach)]
-                public float HeadingAngleReach;
+                public float AverageTranslationMagnitudeReach;
                 [TagField(MinVersion = CacheVersion.HaloReach)]
-                public float TranslationMagnitudeReach; //???
+                public float AveragePivotYawReach;
 
                 public List<FrameEvent> FrameEvents;
                 public List<SoundEvent> SoundEvents;
@@ -382,9 +382,10 @@ namespace TagTool.Tags.Definitions
                 [TagField(MaxVersion = CacheVersion.HaloOnline700123)]
                 public RealVector3d Heading;
                 [TagField(MaxVersion = CacheVersion.HaloOnline700123)]
-                public float HeadingAngle;
+                public float AverageTranslationMagnitude;
                 [TagField(MaxVersion = CacheVersion.HaloOnline700123)]
-                public float TranslationMagnitude; //???
+                public float AveragePivotYaw;
+
             }
 
             [Flags]
@@ -556,7 +557,9 @@ namespace TagTool.Tags.Definitions
                 [TagField(MinVersion = CacheVersion.Halo3ODST)]
                 public DamageReportingType DamageEffectReportingType;
 
-                [TagField(MinVersion = CacheVersion.Halo3ODST, Flags = Padding, Length = 3)]
+                [TagField(MinVersion = CacheVersion.Halo3ODST, MaxVersion = CacheVersion.Halo3ODST, Flags = Padding, Length = 3)]
+                [TagField(MinVersion = CacheVersion.HaloReach, Flags = Padding, Length = 3)]
+                [TagField(MinVersion = CacheVersion.HaloOnlineED, MaxVersion = CacheVersion.HaloOnline700123, Flags = Padding, Length = 2)]
                 public byte[] Padding3;
             }
 
@@ -932,14 +935,18 @@ namespace TagTool.Tags.Definitions
             Bit2 = 1 << 2
         }
 
-        [TagStructure(Size = 0x30)]
+        [TagStructure(Size = 0x30, MaxVersion = CacheVersion.HaloOnline700123)]
+        [TagStructure(Size = 0x2C, MinVersion = CacheVersion.HaloReach)]
         public class Inheritance : TagStructure
 		{
             [TagField(ValidTags = new[] { "jmad" })]
             public CachedTag InheritedGraph;
             public List<NodeMapBlock> NodeMap;
             public List<NodeMapFlag> NodeMapFlags;
+
+            [TagField(MaxVersion = CacheVersion.HaloOnline700123)]
             public float RootZOffset;
+
             public InheritanceListFlags Flags;
 
             [TagStructure(Size = 0x2)]

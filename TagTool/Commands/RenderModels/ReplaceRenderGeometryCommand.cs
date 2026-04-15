@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using TagTool.Common.Logging;
 
 namespace TagTool.Commands.RenderModels
 {
@@ -53,7 +54,7 @@ namespace TagTool.Commands.RenderModels
 
 			if (!Cache.TagCache.TryGetTag<Shader>(@"shaders\invalid", out var defaultShaderTag))
             {
-                new TagToolWarning("shaders\\invalid.shader' not found!\n"
+                Log.Warning("shaders\\invalid.shader' not found!\n"
                     + "You will have to assign material shaders manually.");
             }
 
@@ -172,7 +173,7 @@ namespace TagTool.Commands.RenderModels
 							}
 							catch
 							{
-								new TagToolWarning($"Missing texture coordinate for vertex {i} in '{regionName}:{permName}'");
+								Log.Warning($"Missing texture coordinate for vertex {i} in '{regionName}:{permName}'");
 								uv = new Vector3D();
 							}
 
@@ -188,7 +189,7 @@ namespace TagTool.Commands.RenderModels
 
 									if (!nodes.ContainsKey(bonefix))
 									{
-										new TagToolWarning($"There is no node {bonefix} to match bone {bone.Name}");
+										Log.Warning($"There is no node {bonefix} to match bone {bone.Name}");
 									}
 									else
 									{
@@ -218,7 +219,7 @@ namespace TagTool.Commands.RenderModels
 
 											if (!nodes.ContainsKey(bonefix))
 											{
-												new TagToolError(CommandError.CustomError, $"There is no node {bonefix} to match bone {bone.Name}");
+												Log.Error($"There is no node {bonefix} to match bone {bone.Name}");
 												return false;
 											}
 
@@ -312,9 +313,12 @@ namespace TagTool.Commands.RenderModels
 							materialIndex = materialIndices[meshMaterial.Name];
 						else
 						{
+							if (!Cache.TagCache.TryGetTag(meshMaterial.Name, out CachedTag shaderTag))
+								shaderTag = defaultShaderTag;
+
 							materialIndices.Add(meshMaterial.Name, builder.AddMaterial(new RenderMaterial
 							{
-								RenderMethod = defaultShaderTag,
+								RenderMethod = shaderTag,
 							}));
 							materialIndex = materialIndices[meshMaterial.Name];
 						}
@@ -409,7 +413,9 @@ namespace TagTool.Commands.RenderModels
 			Console.WriteLine("   Replaced render_geometry successfully.\n");
 
 			if (showTriangleStripWarning)
-				return new TagToolWarning($"One or more meshes using TriangleStrips produced more indices than TriangleList would have.");
+			{
+				Log.Warning($"One or more meshes using TriangleStrips produced more indices than TriangleList would have.");
+			}
 
 			return true;
 		}

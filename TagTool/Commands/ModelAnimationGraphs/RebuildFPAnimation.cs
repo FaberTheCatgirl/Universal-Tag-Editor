@@ -14,6 +14,7 @@ using TagTool.Tags.Resources;
 using TagTool.Cache.HaloOnline;
 using System.Text;
 using System.Threading.Tasks;
+using TagTool.Common.Logging;
 
 namespace TagTool.Commands.ModelAnimationGraphs
 {
@@ -147,14 +148,14 @@ namespace TagTool.Commands.ModelAnimationGraphs
                         break;
                     case ".JMT":
                         FrameInfoType = ModelAnimationTagResource.GroupMemberMovementDataType.dx_dy_dyaw;
-                        new TagToolWarning("Advanced Movement data not currently supported, animation may not display properly!");
+                        Log.Warning("Advanced Movement data not currently supported, animation may not display properly!");
                         break;
                     case ".JMZ":
                         FrameInfoType = ModelAnimationTagResource.GroupMemberMovementDataType.dx_dy_dz_dyaw;
-                        new TagToolWarning("Advanced Movement data not currently supported, animation may not display properly!");
+                        Log.Warning("Advanced Movement data not currently supported, animation may not display properly!");
                         break;
                     default:
-                        new TagToolError(CommandError.CustomError, $"Filetype {file_extension.ToUpper()} not recognized!");
+                        Log.Error($"Filetype {file_extension.ToUpper()} not recognized!");
                         return false;
                 }
 
@@ -176,7 +177,7 @@ namespace TagTool.Commands.ModelAnimationGraphs
                 }
                 if(matchingindex == -1)
                 {
-                    new TagToolWarning($"No existing animation found for animation {file_name}!");
+                    Log.Warning($"No existing animation found for animation {file_name}!");
                     continue;
                 }
 
@@ -201,7 +202,7 @@ namespace TagTool.Commands.ModelAnimationGraphs
                 AdjustImportedNodes(importer);
 
                 //set up node flags for serialization
-                importer.ProcessNodeFrames((GameCacheHaloOnlineBase)CacheContext, AnimationType, FrameInfoType);
+                importer.ProcessNodeFrames((GameCacheHaloOnlineBase)CacheContext, Animation, AnimationType, FrameInfoType);
 
                 //Check the nodes to verify that this animation can be imported to this jmad
                 //if (!importer.CompareNodes(Animation.SkeletonNodes, (GameCacheHaloOnlineBase)CacheContext))
@@ -349,7 +350,7 @@ namespace TagTool.Commands.ModelAnimationGraphs
                 int matching_index = importer.AnimationNodes.FindIndex(x => x.Name.Equals(nodeName));
                 if (matching_index == -1)
                 {
-                    new TagToolWarning($"No node matching '{nodeName}' found in imported file! Will proceed with blank data for missing node");
+                    Log.Warning($"No node matching '{nodeName}' found in imported file! Will proceed with blank data for missing node");
                     newAnimationNodes.Add(new AnimationImporter.AnimationNode() {Name = nodeName, FirstChildNode = skellynode.FirstChildNodeIndex, NextSiblingNode = skellynode.NextSiblingNodeIndex, ParentNode = skellynode.ParentNodeIndex});
                 }
                 else

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using TagTool.Cache.Resources;
 using TagTool.Common;
@@ -9,7 +10,8 @@ namespace TagTool.Cache.Gen3
 {
     public class TagDefinitionsGen3 : TagDefinitions
     {
-        public Dictionary<TagGroup, Type> Gen3Types = new Dictionary<TagGroup, Type>
+        public FrozenDictionary<TagGroup, Type> Gen3Types => Gen3Definitions.TagGroupToTypeLookup;
+        private static readonly CachedDefinitions Gen3Definitions = GetCachedDefinitions(new Dictionary<TagGroup, Type>
         {
             { new TagGroupGen3("<fx>", "sound_effect_template"), typeof(SoundEffectTemplate) },
             { new TagGroupGen3("achi", "achievements"), typeof(Achievements) },
@@ -40,6 +42,7 @@ namespace TagTool.Cache.Gen3
             { new TagGroupGen3("cisc", "cinematic_scene"), typeof(CinematicScene) },
             { new TagGroupGen3("clwd", "cloth"), typeof(Cloth) },
             { new TagGroupGen3("cmoe", "camo"), typeof(Camo) },
+            { new TagGroupGen3("cmpu", "compute_shader"), typeof(ComputeShader) },
             { new TagGroupGen3("cntl", "contrail_system"), typeof(ContrailSystem) },
             { new TagGroupGen3("cobj", "obje", "custom_object"), typeof(CustomObject) },
             { new TagGroupGen3("coll", "collision_model"), typeof(CollisionModel) },
@@ -64,8 +67,10 @@ namespace TagTool.Cache.Gen3
             { new TagGroupGen3("foot", "material_effects"), typeof(MaterialEffects) },
             { new TagGroupGen3("forg", "forge_globals_definition"), typeof(ForgeGlobalsDefinition) },
             { new TagGroupGen3("form", "formation"), typeof(Formation) },
+            { new TagGroupGen3("fwtg", "user_interface_fourth_wall_timing_definition"), typeof(UserInterfaceFourthWallTimingDefinition) },
             { new TagGroupGen3("gfxt", "gfx_textures_list"), typeof(GfxTexturesList) },
             { new TagGroupGen3("gint", "unit", "obje", "giant"), typeof(Giant) },
+            { new TagGroupGen3("gldf", "cheap_light"), typeof(CheapLight) },
             { new TagGroupGen3("glps", "global_pixel_shader"), typeof(GlobalPixelShader) },
             { new TagGroupGen3("glvs", "global_vertex_shader"), typeof(GlobalVertexShader) },
             { new TagGroupGen3("goof", "multiplayer_variant_settings_interface_definition"), typeof(MultiplayerVariantSettingsInterfaceDefinition) },
@@ -130,6 +135,7 @@ namespace TagTool.Cache.Gen3
             { new TagGroupGen3("rmw ", "rm  ", "shader_water"), typeof(ShaderWater) },
             { new TagGroupGen3("rmzo", "rm  ", "shader_zonly"), typeof(ShaderZonly) },
             { new TagGroupGen3("rmbl", "rumble"), typeof(Rumble) },
+            { new TagGroupGen3("rsod", "render_skins_object_globals"), typeof(RenderSkinsObjectGlobals) },
             { new TagGroupGen3("rwrd", "render_water_ripple"), typeof(RenderWaterRipple) },
             { new TagGroupGen3("sLdT", "scenario_lightmap"), typeof(ScenarioLightmap) },
             { new TagGroupGen3("sbsp", "scenario_structure_bsp"), typeof(ScenarioStructureBsp) },
@@ -137,6 +143,7 @@ namespace TagTool.Cache.Gen3
             { new TagGroupGen3("scn3", "gui_screen_widget_definition"), typeof(GuiScreenWidgetDefinition) },
             { new TagGroupGen3("scnr", "scenario"), typeof(Scenario) },
             { new TagGroupGen3("sddt", "structure_design"), typeof(StructureDesign) },
+            { new TagGroupGen3("sdzg", "scenario_required_resource"), typeof(ScenarioRequiredResource) },
             { new TagGroupGen3("sefc", "area_screen_effect"), typeof(AreaScreenEffect) },
             { new TagGroupGen3("sfx+", "sound_effect_collection"), typeof(SoundEffectCollection) },
             { new TagGroupGen3("sgp!", "sound_global_propagation"), typeof(SoundGlobalPropagation) },
@@ -150,6 +157,7 @@ namespace TagTool.Cache.Gen3
             { new TagGroupGen3("snd!", "sound"), typeof(Sound) },
             { new TagGroupGen3("snde", "sound_environment"), typeof(SoundEnvironment) },
             { new TagGroupGen3("snmx", "sound_mix"), typeof(SoundMix) },
+            { new TagGroupGen3("spda", "scenario_pda"), typeof(ScenarioPda) },
             { new TagGroupGen3("spk!", "sound_dialogue_constants"), typeof(SoundDialogueConstants) },
             { new TagGroupGen3("sqtm", "squad_template"), typeof(SquadTemplate) },
             { new TagGroupGen3("ssce", "obje", "sound_scenery"), typeof(SoundScenery) },
@@ -170,6 +178,7 @@ namespace TagTool.Cache.Gen3
             { new TagGroupGen3("vmdx", "vision_mode"), typeof(VisionMode) },
             { new TagGroupGen3("vtsh", "vertex_shader"), typeof(VertexShader) },
             { new TagGroupGen3("wacd", "gui_widget_animation_collection_definition"), typeof(GuiWidgetAnimationCollectionDefinition) },
+            { new TagGroupGen3("wave", "wave_template"), typeof(WaveTemplate) },
             { new TagGroupGen3("wclr", "gui_widget_color_animation_definition"), typeof(GuiWidgetColorAnimationDefinition) },
             { new TagGroupGen3("weap", "item", "obje", "weapon"), typeof(Weapon) },
             { new TagGroupGen3("wezr", "game_engine_settings_definition"), typeof(GameEngineSettingsDefinition) },
@@ -183,9 +192,23 @@ namespace TagTool.Cache.Gen3
             { new TagGroupGen3("wspr", "gui_widget_sprite_animation_definition"), typeof(GuiWidgetSpriteAnimationDefinition) },
             { new TagGroupGen3("wtuv", "gui_widget_texture_coordinate_animation_definition"), typeof(GuiWidgetTextureCoordinateAnimationDefinition) },
             { new TagGroupGen3("zone", "cache_file_resource_gestalt"), typeof(ResourceGestalt) }
-        };
+        });
+        public TagDefinitionsGen3() : base(Gen3Definitions) { }
 
-        public override Dictionary<TagGroup, Type> Types { get => Gen3Types; }
+        private static readonly FrozenDictionary<string, Tag> NameToTagLookup = NameToTagLookupValue();
+        private static FrozenDictionary<string, Tag> NameToTagLookupValue()
+        {
+            var result = new Dictionary<string, Tag>();
+            foreach (var (key, _) in Gen3Definitions.TagGroupToTypeLookup)
+            {
+                result.Add(((TagGroupGen3)key).Name, key.Tag);
+            }
+            return result.ToFrozenDictionary();
+        }
+
+        public bool TryGetTagFromName(string name, out Tag tag)
+        {
+            return NameToTagLookup.TryGetValue(name, out tag);
+        }
     }
-
 }

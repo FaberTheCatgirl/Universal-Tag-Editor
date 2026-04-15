@@ -10,6 +10,10 @@ using TagTool.Serialization;
 using TagTool.Tags;
 using TagTool.Tags.Definitions;
 using TagTool.Commands.Common;
+using TagTool.Common.Logging;
+using TagTool.Audio.Bank;
+using static TagTool.Tags.Definitions.Globals;
+using TagTool.Cache.CacheFile;
 
 namespace TagTool.Cache
 {
@@ -19,14 +23,11 @@ namespace TagTool.Cache
         public FileInfo CacheFile;
         public string NetworkKey;
        
-
         public StringTableGen3 StringTableGen3;
         public TagCacheGen3 TagCacheGen3;
         public ResourceCacheGen3 ResourceCacheGen3;
 
-        public DirectoryInfo FMODSoundCacheDirectory;
-        public FMODSoundCache FMODSoundCache;
-
+        public CacheFileHeaderGen3 HeaderGen3 => (CacheFileHeaderGen3)BaseMapFile.Header;
         public override TagCache TagCache => TagCacheGen3;
         public override StringTable StringTable => StringTableGen3;
         public override ResourceCache ResourceCache => ResourceCacheGen3;
@@ -193,11 +194,8 @@ namespace TagTool.Cache
 
         #region Serialization
 
-        public override T Deserialize<T>(Stream stream, CachedTag instance) =>
-            Deserialize<T>(new Gen3SerializationContext(stream, this, (CachedTagGen3)instance));
-
-        public override object Deserialize(Stream stream, CachedTag instance) =>
-            Deserialize(new Gen3SerializationContext(stream, this, (CachedTagGen3)instance), TagCache.TagDefinitions.GetTagDefinitionType(instance.Group));
+        public override object Deserialize(Stream stream, CachedTag instance, Type type) =>
+            Deserialize(new Gen3SerializationContext(stream, this, (CachedTagGen3)instance), type);
 
         public override void Serialize(Stream stream, CachedTag instance, object definition)
         {
@@ -262,6 +260,73 @@ namespace TagTool.Cache
             {
                 sectionTable.SectionAddressToOffsets[i] += shiftAmount;
             }
+        }
+
+        public override void LoadLocaleTables(Stream stream)
+        {
+            if (LocaleTables != null)
+                return;
+
+            if (TagCacheGen3.Instances.Count == 0 || HeaderGen3.SectionTable.Sections[(int)CacheFileSectionType.LocalizationSection].Size == 0)
+                return;
+
+            //Allow caches to open even if Globals cannot deserialize
+            try
+            {
+                var matg = Deserialize<Globals>(stream, TagCacheGen3.GlobalInstances["matg"]);
+
+                string localesKey = "";
+                switch (Version)
+                {
+                    case CacheVersion.HaloReach when Platform == CachePlatform.Original:
+                        localesKey = "BungieHaloReach!";
+                        break;
+                }
+
+                LanguagePack[] languagePacks = Platform == CachePlatform.MCC ? matg.LanguagePacksMCC : matg.LanguagePacks;
+
+                LocaleTables = CacheFileLocaleTables.Load(new EndianReader(stream, Endianness), HeaderGen3.SectionTable, localesKey, languagePacks);
+            }
+            catch
+            {
+                Log.Warning("Failed to build locales table (Invalid Globals definition?)");
+            }
+        }
+
+        public override void LoadSoundBanks()
+        {
+            if (SoundBanks != null || Platform != CachePlatform.MCC)
+                return;
+
+            var game = Version.ToString().ToLower().Replace("retail", "");
+
+            var directories =  new List<DirectoryInfo>();
+            //check if this is a mod
+            if (CacheFile.Directory.FullName.Contains("steamapps\\workshop\\content"))
+            {
+                string root = CacheFile.Directory.FullName.Split(new string[] { "workshop" }, StringSplitOptions.None)[0];
+
+                DirectoryInfo mainDirectory = new DirectoryInfo(Path.Combine(root, "common\\Halo The Master Chief Collection", game, "fmod\\pc"));
+                if (mainDirectory.Exists)
+                    directories.Add(mainDirectory);
+                else
+                    Log.Warning("Failed to find main mcc sound banks!");
+            }
+
+            DirectoryInfo localDirectory = new DirectoryInfo(Path.Combine(CacheFile.Directory.FullName, "..", "fmod\\pc"));
+            if (localDirectory.Exists)
+                directories.Add(localDirectory);
+            else
+            {
+                localDirectory = new DirectoryInfo(Path.Combine(CacheFile.Directory.FullName, "..", game, "fmod\\pc"));
+                if (localDirectory.Exists)
+                    directories.Add(localDirectory);
+            }
+
+            if (directories.Count == 0)
+                Log.Warning("Failed to load any FMOD sound banks!");
+
+            SoundBanks = new SoundBankCache(directories);
         }
 
         public override bool TryGetTag(string text, out object tag)

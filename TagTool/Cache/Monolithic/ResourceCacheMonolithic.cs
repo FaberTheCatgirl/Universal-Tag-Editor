@@ -150,9 +150,13 @@ namespace TagTool.Cache.Monolithic
             }
         }
 
-        public override object GetBitmapTextureInteropResource(object value)
+        public override bool IsResourceValid(TagResourceReference resourceReference)
         {
-            throw new NotImplementedException();
+            var xsyncState = resourceReference.XSyncState;
+            if (xsyncState == null)
+                return false;
+
+            return true;
         }
     }
 }

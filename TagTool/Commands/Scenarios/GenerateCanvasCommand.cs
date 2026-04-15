@@ -2,10 +2,13 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using TagTool.BlamFile;
 using TagTool.Cache;
-using TagTool.Common;
+using TagTool.Cache.Resources;
 using TagTool.Commands.Common;
+using TagTool.Common;
+using TagTool.Common.Logging;
 using TagTool.Geometry;
 using TagTool.Geometry.BspCollisionGeometry;
 using TagTool.Havok;
@@ -62,7 +65,7 @@ namespace TagTool.Commands.Scenarios
                 MapAuthor = "ElDewrito",
                 MapId = 9001,
                 ScenarioPath = @"levels\eldewrito\canvas\canvas",
-                WorldBounds = new RealRectangle3d(-1000, 1000, -1000, 1000, -1000, 1000)
+                WorldBounds = new RealRectangle3d(-200, 200, -200, 200, -200, 200)
             };
 
             bool quick = false;
@@ -98,47 +101,90 @@ namespace TagTool.Commands.Scenarios
 
         private bool AskForParameterInput(GeneratorParameters parameters)
         {
-            Console.WriteLine("\nEnter desired scenario tagname (e.g. levels\\eldewrito\\canvas\\canvas):");
-            parameters.ScenarioPath = CommandRunner.ApplyUserVars(@Console.ReadLine().ToLower(), IgnoreArgumentVariables);
-            if (parameters.ScenarioPath.Length < 4)
+            if (!RequestBoundedInput("Enter desired scenario tagname (e.g. levels\\eldewrito\\canvas\\canvas):",
+                out parameters.ScenarioPath))
+                return false;
+
+            var fullName = $"{parameters.ScenarioPath}.scnr";
+            if (Cache.TagCache.TagExists(fullName))
             {
-                new TagToolError(CommandError.CustomError, "Provided tagname must be greater than 3 characters.");
+                Log.Error("A scenario tag with this name already exists.");
                 return false;
             }
-            Console.WriteLine("Enter the map display name (4-15 characters):");
-            parameters.MapName = CommandRunner.ApplyUserVars(Console.ReadLine(), IgnoreArgumentVariables);
-            if (parameters.MapName.Length > 15 || parameters.MapName.Length < 4)
+            else if (!Cache.TagCache.IsTagPathValid(fullName))
             {
-                new TagToolError(CommandError.CustomError, "Provided name must be between 4 and 15 characters.");
+                Log.Error($"Malformed target tag path '{parameters.ScenarioPath}'");
                 return false;
             }
-            Console.WriteLine("Enter the map description: (<128 characters)");
-            parameters.MapDescription = CommandRunner.ApplyUserVars(Console.ReadLine(), IgnoreArgumentVariables);
-            if (parameters.MapDescription.Length > 127)
-            {
-                new TagToolError(CommandError.CustomError, "Description exceeds 127 characters.");
+
+            if (!RequestBoundedInput("Enter the map display name (<16 characters):",
+                out parameters.MapName, 15))
                 return false;
-            }
-            Console.WriteLine("Enter the map author (4-15 characters):");
-            parameters.MapAuthor = CommandRunner.ApplyUserVars(Console.ReadLine(), IgnoreArgumentVariables);
-            if (parameters.MapAuthor.Length > 15 || parameters.MapAuthor.Length < 4)
-            {
-                new TagToolError(CommandError.CustomError, "Author name must be between 4 and 15 characters.");
+
+            if (!RequestBoundedInput("Enter the map description: (<128 characters)",
+                out parameters.MapDescription, 127))
                 return false;
-            }
-            Console.WriteLine("Enter a mapID (integer) between 7000 and 65535:");
-            if (int.TryParse(CommandRunner.ApplyUserVars(Console.ReadLine(), IgnoreArgumentVariables), out int result))
+
+            if (!RequestBoundedInput("Enter the map author (<16 characters):",
+                out parameters.MapDescription, 15))
+                return false;
+
+            if (!RequestBoundedInput("Enter a mapID (integer) between 7000 and 65535:",
+                out string mapIdString, 5))
+                return false;
+
+            if (int.TryParse(mapIdString, out int result))
             {
                 parameters.MapId = result;
                 if (parameters.MapId < 7001 || parameters.MapId > 65534)
                 {
-                    new TagToolError(CommandError.CustomError, "MapID must be between 7000 and 65535.");
+                    Log.Error("MapID must be between 7000 and 65535.");
                     return false;
                 }
             }
             else
             {
-                new TagToolError(CommandError.CustomError, "MapID must be an integer.");
+                Log.Error("MapID must be an integer.");
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool RequestBoundedInput(string prompt, out string value, int upperBound = 0, int lowerBound = 0)
+        {
+            Console.WriteLine(prompt);
+            string input = CommandRunner.ApplyUserVars(@Console.ReadLine().ToLower(), IgnoreArgumentVariables);
+
+            if (InputIsValid(input, upperBound, lowerBound))
+            {
+                value = input;
+                return true;
+            }
+            else
+            {
+                value = null;
+                return false;
+            }
+        }
+
+        private bool InputIsValid(string input, int upperBound = 0, int lowerBound = 0)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                Log.Error($"Input is null or empty.");
+                return false;
+            }
+
+            if (upperBound > 0 && input.Length > upperBound)
+            {
+                Log.Error($"Input exceeds {upperBound} characters.");
+                return false;
+            }
+
+            if (input.Contains("|"))
+            {
+                Log.Error($"Input contains invalid characters.");
                 return false;
             }
 
@@ -175,11 +221,13 @@ namespace TagTool.Commands.Scenarios
             var sbspTag = Cache.TagCache.AllocateTag<ScenarioStructureBsp>($"{scenarioPath}_bsp_0");
             var lbspTag = Cache.TagCache.AllocateTag<ScenarioLightmapBspData>($"{scenarioPath}_faux_lightmap_bsp_data_0");
             var sldtTag = Cache.TagCache.AllocateTag<ScenarioLightmapBspData>($"{scenarioPath}_faux_lightmap");
+            var cfxsTag = Cache.TagCache.AllocateTag<CameraFxSettings>($"{scenarioPath}");
+
+            var cfxs = Cache.Deserialize<CameraFxSettings>(stream, Cache.TagCache.GetTag<CameraFxSettings>(@"globals\default"));
 
             Cache.TagCache.TryGetTag<Scenery>(@"levels\multi\riverworld\sky\riverworld", out var skySceneryTag);
             Cache.TagCache.TryGetTag<Wind>(@"levels\multi\riverworld\wind_riverworld", out var windTag);
             Cache.TagCache.TryGetTag<Bitmap>(@"levels\multi\riverworld\riverworld_riverworld_cubemaps", out var cubemapsTag);
-            Cache.TagCache.TryGetTag<CameraFxSettings>(@"levels\multi\riverworld\riverworld", out var cfxsTag);
             Cache.TagCache.TryGetTag<SkyAtmParameters>(@"levels\multi\riverworld\sky\riverworld", out var skyaTag);
             Cache.TagCache.TryGetTag<ChocolateMountainNew>(@"levels\multi\riverworld\riverworld", out var chmtTag);
             Cache.TagCache.TryGetTag<PerformanceThrottles>(@"levels\multi\riverworld\riverworld", out var perfTag);
@@ -199,7 +247,7 @@ namespace TagTool.Commands.Scenarios
                         StructureBsp = sbspTag,
                         Cubemap = cubemapsTag,
                         Wind = windTag,
-                        Flags = 32,
+                        Flags = (Scenario.StructureBspBlock.StructureBspFlags)32,
                         DefaultSkyIndex = -1
                     }
                 };
@@ -217,7 +265,7 @@ namespace TagTool.Commands.Scenarios
 
             if (type == WorldType.Water)
             {
-                var waterWorldParams = new WaterWorldParameters()
+                var waterWorldParams = new WorldGenerator.WorldParameters()
                 {
                     Shader = Cache.TagCache.GetTag(@"levels\multi\riverworld\shaders\riverworld_water_rough.shader_water"),
                     CellSize = 20,
@@ -225,13 +273,16 @@ namespace TagTool.Commands.Scenarios
                     Opacity = 0.9f,
                     Z = 0
                 };
-                var waterGeometry = GenerateWaterWorld(sbsp, waterWorldParams);
+                WorldGenerator.GenerateWaterWorld(Cache, sbsp, waterWorldParams, out var waterGeometry, out var resource);
+                waterGeometry.SetResourceBuffers(resource, false);
+                waterGeometry.Resource = Cache.ResourceCache.CreateRenderGeometryApiResource(resource);
                 lbsp.Geometry = waterGeometry;
                 sbsp.Geometry = waterGeometry;
                 // temp hack to ensure render geo is visible
                 sbsp.CompatibilityFlags |= ScenarioStructureBsp.StructureBspCompatibilityValue.Reach;
             }
 
+            Cache.Serialize(stream, cfxsTag, cfxs);
             Cache.Serialize(stream, sbspTag, sbsp);
             Cache.Serialize(stream, lbspTag, lbsp);
             Cache.Serialize(stream, sldtTag, sldt);
@@ -480,7 +531,7 @@ namespace TagTool.Commands.Scenarios
             return renderGeometry;
         }
 
-        private void GenerateMapFile(Stream cacheStream, GameCache cache, CachedTag scenarioTag, string mapName, string mapDescription, string author)
+        private void GenerateMapFile(Stream cacheStream, GameCacheHaloOnlineBase cache, CachedTag scenarioTag, string mapName, string mapDescription, string author)
         {
             var scenarioName = Path.GetFileName(scenarioTag.Name);
             var scnr = cache.Deserialize<Scenario>(cacheStream, scenarioTag);
@@ -489,29 +540,17 @@ namespace TagTool.Commands.Scenarios
             mapBuilder.MapName = mapName;
             mapBuilder.MapDescription = mapDescription;
             MapFile map = mapBuilder.Build(scenarioTag, scnr);
- 
-            if (cache is GameCacheModPackage)
-            {
-                var mapStream = new MemoryStream();
-                var writer = new EndianWriter(mapStream, leaveOpen: true);
-                map.Write(writer);
 
-                var modPackCache = cache as GameCacheModPackage;
-                modPackCache.AddMapFile(mapStream, scnr.MapId);
-            }
-            else
-            {
-                var mapFile = new FileInfo(Path.Combine(cache.Directory.FullName, $"{scenarioName}.map"));
+            cache.MapFiles.Add(map);
+        }        
+    }
 
-                using (var mapFileStream = mapFile.Create())
-                {
-                    map.Write(new EndianWriter(mapFileStream));
-                }
-            }
-        }
-
-        class WaterWorldParameters
+    public static class WorldGenerator
+    {
+        public class WorldParameters
         {
+            public RealVector2d Center = new RealVector2d(0.0f, 0.0f);
+            public RealVector2d Extents = new RealVector2d(500.0f, 500.0f);
             public CachedTag Shader;
             public float Tesselation;
             public float Opacity;
@@ -519,28 +558,33 @@ namespace TagTool.Commands.Scenarios
             public float Z;
         }
 
-        private RenderGeometry GenerateWaterWorld(ScenarioStructureBsp sbsp, WaterWorldParameters parameters)
+        public static void GenerateWaterWorld(GameCache Cache, ScenarioStructureBsp sbsp, WorldParameters parameters, out RenderGeometry resultGeometry, out RenderGeometryApiResourceDefinition resultResource)
         {
-            sbsp.Materials = new List<RenderMaterial>() { new RenderMaterial() { RenderMethod = parameters.Shader } };
-            sbsp.CollisionMaterials = new List<ScenarioStructureBsp.CollisionMaterial>()
-            { 
-                new ScenarioStructureBsp.CollisionMaterial()
-                {
-                    RenderMethod = parameters.Shader,
-                    ConveyorSurfaceIndex = -1,
-                    SeamMappingIndex = -1,
-                    RuntimeGlobalMaterialIndex = 0
-                }
-            };
+            if (sbsp.Materials == null)
+            {
+                sbsp.Materials = new List<RenderMaterial>();
+                sbsp.CollisionMaterials = new List<ScenarioStructureBsp.CollisionMaterial>();
+            }
+            sbsp.Materials.Add(new RenderMaterial() { RenderMethod = parameters.Shader });
+            sbsp.CollisionMaterials.Add(new ScenarioStructureBsp.CollisionMaterial()
+            {
+                RenderMethod = parameters.Shader,
+                ConveyorSurfaceIndex = -1,
+                SeamMappingIndex = -1,
+                RuntimeGlobalMaterialIndex = 0
+            });
+
+            if (parameters.Extents == new RealVector2d(0.0f, 0.0f))
+                parameters.Extents = new RealVector2d(500.0f, 500.0f);
 
             float cellSize = parameters.CellSize;
-            int xCells = (int)Math.Ceiling(sbsp.WorldBoundsX.Length / cellSize);
-            int yCells = (int)Math.Ceiling(sbsp.WorldBoundsZ.Length / cellSize);
+            int xCells = (int)Math.Ceiling((parameters.Extents.I * 2) / cellSize);
+            int yCells = (int)Math.Ceiling((parameters.Extents.J * 2) / cellSize);
             GenerateGridMesh(xCells, yCells, cellSize, out WorldVertex[] worldVertices, out ushort[] indices);
 
-            var origin = new RealPoint3d(-sbsp.WorldBoundsX.Length / 2, -sbsp.WorldBoundsZ.Length / 2, parameters.Z);
-            foreach (var vertex in worldVertices)
-                vertex.Position = new RealQuaternion(vertex.Position.I + origin.X, vertex.Position.J + origin.Y, vertex.Position.K + origin.Z);
+            var origin = new RealPoint3d(parameters.Center.I - parameters.Extents.I, parameters.Center.J - parameters.Extents.J, parameters.Z);
+            foreach (ref WorldVertex v in worldVertices.AsSpan())
+                v.Position = new RealQuaternion(v.Position.I + origin.X, v.Position.J + origin.Y, v.Position.K + origin.Z);
 
             var worldWaterVertices = GenerateWorldWaterVertices(worldVertices, indices);
             var waterParams = GenerateWaterParams(indices, parameters.Tesselation, parameters.Opacity);
@@ -593,19 +637,91 @@ namespace TagTool.Commands.Scenarios
             mesh.VertexBufferIndices[6] = 1;
             mesh.VertexBufferIndices[7] = 2;
 
+            var geometry = new RenderGeometry();
+            geometry.Meshes = new List<Mesh>() { mesh };
+            geometry.InstancedGeometryPerPixelLighting = new List<RenderGeometry.StaticPerPixelLighting>();
+
+            resultResource = resourceDefinition;
+            resultGeometry = geometry;
+        }
+
+        public static void GenerateFlatWorld(GameCache Cache, ScenarioStructureBsp sbsp, WorldParameters parameters, out RenderGeometry resultGeometry, out RenderGeometryApiResourceDefinition resultResource)
+        {
+            if (sbsp.Materials == null)
+            {
+                sbsp.Materials = new List<RenderMaterial>();
+                sbsp.CollisionMaterials = new List<ScenarioStructureBsp.CollisionMaterial>();
+            }
+            sbsp.Materials.Add(new RenderMaterial() { RenderMethod = parameters.Shader });
+            sbsp.CollisionMaterials.Add(new ScenarioStructureBsp.CollisionMaterial()
+            {
+                RenderMethod = parameters.Shader,
+                ConveyorSurfaceIndex = -1,
+                SeamMappingIndex = -1,
+                RuntimeGlobalMaterialIndex = 0
+            });
+
+            if (parameters.Extents == new RealVector2d(0.0f, 0.0f))
+                parameters.Extents = new RealVector2d(500.0f, 500.0f);
+
+            float cellSize = parameters.CellSize;
+            int xCells = (int)Math.Ceiling((parameters.Extents.I * 2)/ cellSize);
+            int yCells = (int)Math.Ceiling((parameters.Extents.J * 2)/ cellSize);
+            GenerateGridMesh(xCells, yCells, cellSize, out WorldVertex[] worldVertices, out ushort[] indices);
+
+            var origin = new RealPoint3d(parameters.Center.I - parameters.Extents.I, parameters.Center.J - parameters.Extents.J, parameters.Z);
+            foreach (ref WorldVertex v in worldVertices.AsSpan())
+                v.Position = new RealQuaternion(v.Position.I + origin.X, v.Position.J + origin.Y, v.Position.K + origin.Z);
+
+            var part = new Part()
+            {
+                MaterialIndex = 0,
+                TransparentSortingIndex = -1,
+                FirstIndex = 0,
+                IndexCount = indices.Length,
+                
+            };
+            var mesh = new Mesh()
+            {
+                Type = VertexType.World,
+                RigidNodeIndex = -1,
+                Parts = new List<Part>() { part },
+                VertexBufferIndices = new short[] { -1, -1, -1, -1, -1, -1, -1, -1 },
+                IndexBufferIndices = new short[] { -1, -1 },
+                IndexBufferType = PrimitiveType.TriangleList
+            };
+
+            var indexBuffer = new IndexBufferDefinition();
+            var worldBuffer = new VertexBufferDefinition();
+
+            WriteIndices(indexBuffer, indices, IndexBufferFormat.TriangleList);
+            WriteWorldVertices(worldBuffer, worldVertices);
+
+            var resourceDefinition = new RenderGeometryApiResourceDefinition();
+            resourceDefinition.IndexBuffers = new TagBlock<D3DStructure<IndexBufferDefinition>>(CacheAddressType.Definition)
+            {
+                new D3DStructure<IndexBufferDefinition>() { AddressType = CacheAddressType.Definition, Definition = indexBuffer }
+            };
+
+            resourceDefinition.VertexBuffers = new TagBlock<D3DStructure<VertexBufferDefinition>>(CacheAddressType.Definition)
+            {
+                new D3DStructure<VertexBufferDefinition>() { AddressType = CacheAddressType.Definition, Definition = worldBuffer }
+            };
+
+            mesh.IndexBufferIndices[0] = 0;
+            mesh.VertexBufferIndices[0] = 0;
 
             var geometry = new RenderGeometry();
             geometry.Meshes = new List<Mesh>() { mesh };
             geometry.InstancedGeometryPerPixelLighting = new List<RenderGeometry.StaticPerPixelLighting>();
-            geometry.SetResourceBuffers(resourceDefinition, false);
-            geometry.Resource = Cache.ResourceCache.CreateRenderGeometryApiResource(resourceDefinition);
 
-            return geometry;
+            resultResource = resourceDefinition;
+            resultGeometry = geometry;
         }
 
         private static WaterTesselatedParameters[] GenerateWaterParams(ushort[] indices, float tessellation, float opacity)
         {
-            return indices.Select(x => new WaterTesselatedParameters() 
+            return indices.Select(x => new WaterTesselatedParameters()
             {
                 LocalInfo = new RealVector2d(tessellation, opacity)
             }).ToArray();
@@ -634,7 +750,7 @@ namespace TagTool.Commands.Scenarios
             return worldWaterVertices.ToArray();
         }
 
-        private void GenerateGridMesh(int xCells, int yCells, float cellSize, out WorldVertex[] outVertices, out ushort[] outIndices)
+        private static void GenerateGridMesh(int xCells, int yCells, float cellSize, out WorldVertex[] outVertices, out ushort[] outIndices)
         {
             var vertices = new List<WorldVertex>();
             var indices = new List<ushort>();
@@ -689,7 +805,7 @@ namespace TagTool.Commands.Scenarios
             outIndices = indices.ToArray();
         }
 
-        void WriteIndices(IndexBufferDefinition def, ushort[] indices, IndexBufferFormat format)
+        private static void WriteIndices(IndexBufferDefinition def, ushort[] indices, IndexBufferFormat format)
         {
             using (var outputStream = new MemoryStream())
             {
@@ -700,7 +816,7 @@ namespace TagTool.Commands.Scenarios
             }
         }
 
-        void WriteWorldVertices(VertexBufferDefinition def, WorldVertex[] vertices)
+        private static void WriteWorldVertices(VertexBufferDefinition def, WorldVertex[] vertices)
         {
             using (var outputStream = new MemoryStream())
             {
@@ -715,7 +831,7 @@ namespace TagTool.Commands.Scenarios
             }
         }
 
-        void WriteWorldWaterVertices(VertexBufferDefinition def, WorldWaterVertex[] vertices)
+        private static void WriteWorldWaterVertices(VertexBufferDefinition def, WorldWaterVertex[] vertices)
         {
             using (var outputStream = new MemoryStream())
             {
@@ -730,7 +846,7 @@ namespace TagTool.Commands.Scenarios
             }
         }
 
-        void WriteUnknown1BVertices(VertexBufferDefinition def, WaterTesselatedParameters[] vertices)
+        private static void WriteUnknown1BVertices(VertexBufferDefinition def, WaterTesselatedParameters[] vertices)
         {
             using (var outputStream = new MemoryStream())
             {

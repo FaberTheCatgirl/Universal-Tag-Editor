@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using TagTool.Cache;
 using TagTool.Common;
 
@@ -10,16 +14,8 @@ namespace TagTool.Tags
     /// </summary>
     public class TagStructureInfo
     {
-        private CacheVersion version;
-
-        /// <summary>
-        /// Constructs a <see cref="TagStructureInfo"/> object which contains info about a tag structure type.
-        /// </summary>
-        /// <param name="structureType">The tag structure type to analyze.</param>
-        public TagStructureInfo(Type structureType)
-            : this(structureType, CacheVersion.Unknown, CachePlatform.All)
-        {
-        }
+        private TagFieldEnumerable _fields;
+        private Func<object> _activator;
 
         public TagStructureInfo(Type structureType, CacheVersion version) : this(structureType)
         {
@@ -39,7 +35,7 @@ namespace TagTool.Tags
             GroupTag = new Tag(-1);
             ParentGroupTag = new Tag(-1);
             GrandparentGroupTag = new Tag(-1);
-            Analyze(structureType, version, cachePlatform);
+            Analyze(structureType, version, cachePlatform);    
         }
 
         /// <summary>
@@ -81,19 +77,47 @@ namespace TagTool.Tags
         /// </summary>
         public Tag GrandparentGroupTag { get; private set; }
 
+        public TagFieldEnumerable TagFields
+        {
+            get
+            {
+                if (_fields == null)
+                {
+                    lock (this)
+                    {
+                        _fields ??= new TagFieldEnumerable(this);
+                    }
+                }
+
+                return _fields;
+            }
+        }
+
+        public object CreateInstance()
+        {
+            if (_activator == null)
+            {
+                lock (this)
+                {
+                    _activator ??= Expression.Lambda<Func<object>>(Expression.New(Types[0])).Compile();
+                }
+            }
+            return _activator();
+        }
+
         private void Analyze(Type mainType, CacheVersion version, CachePlatform cachePlatform)
         {
             // Get the attribute for the main structure type
-            Structure = TagStructure.GetTagStructureAttribute(mainType, version, cachePlatform);
+            Structure = GetStructureAttribute(mainType, version, cachePlatform);
             if (Structure == null)
                 throw new InvalidOperationException($"No `{nameof(TagStructureAttribute)}` for `{version}` platform `{cachePlatform}` found on `{mainType.Name}`.");
 
 			// Scan through the type's inheritance hierarchy and analyze each TagStructure attribute
 			var currentType = mainType;
-            Types = new List<Type>();
+            Types = [];
             while (currentType != null)
             {
-                var attrib = (currentType != mainType) ? TagStructure.GetTagStructureAttribute(currentType, version, cachePlatform) : Structure;
+                var attrib = (currentType != mainType) ? GetStructureAttribute(currentType, version, cachePlatform) : Structure;
                 if (attrib != null)
                 {
                     Types.Add(currentType);
@@ -110,6 +134,17 @@ namespace TagTool.Tags
                 }
                 currentType = currentType.BaseType;
             }
+        }
+
+        private static TagStructureAttribute GetStructureAttribute(Type type, CacheVersion version, CachePlatform platform)
+        {
+            foreach (var attr in type.GetCustomAttributes<TagStructureAttribute>(false))
+            {
+                if (CacheVersionDetection.TestAttribute(attr, version, platform))
+                    return attr;
+            }
+
+            return null;
         }
     }
 }

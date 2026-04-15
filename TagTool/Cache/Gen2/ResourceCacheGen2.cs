@@ -8,6 +8,7 @@ using TagTool.Tags;
 using TagTool.Tags.Resources;
 using TagTool.BlamFile;
 using TagTool.Cache.Resources;
+using TagTool.Common.Logging;
 
 namespace TagTool.Cache.Gen2
 {
@@ -54,7 +55,7 @@ namespace TagTool.Cache.Gen2
                     sourceCache = Cache.ResourceCacheReferences[cacheName];
                 else
                 {
-                    new TagToolWarning($"Failed to find cache for resource 0x{resourceAddress:X8}");
+                    Log.Warning($"Failed to find cache for resource 0x{resourceAddress:X8}");
                     return null;
                 }
             }
@@ -193,9 +194,9 @@ namespace TagTool.Cache.Gen2
             throw new NotImplementedException();
         }
 
-        public override object GetBitmapTextureInteropResource(object value)
+        public override bool IsResourceValid(TagResourceReference resourceReference)
         {
-            throw new NotImplementedException();
+            return resourceReference.Gen2ResourceAddress != 0 && resourceReference.Gen2ResourceAddress != uint.MaxValue;
         }
     }
 }

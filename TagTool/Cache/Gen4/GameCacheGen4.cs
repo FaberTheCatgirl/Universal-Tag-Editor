@@ -2,12 +2,15 @@
 using System.Collections.Generic;
 using System.IO;
 using TagTool.BlamFile;
+using TagTool.Cache.CacheFile;
 using TagTool.Cache.Gen4;
 using TagTool.Cache.Resources;
+using TagTool.Common.Logging;
 using TagTool.IO;
 using TagTool.Serialization;
 using TagTool.Tags;
 using TagTool.Tags.Definitions.Gen4;
+using static TagTool.Tags.Definitions.Globals;
 
 namespace TagTool.Cache
 {
@@ -21,6 +24,7 @@ namespace TagTool.Cache
         public TagCacheGen4 TagCacheGen4;
         public ResourceCacheGen4 ResourceCacheGen4;
 
+        public CacheFileHeaderGen4 HeaderGen4 => (CacheFileHeaderGen4)BaseMapFile.Header;
         public override TagCache TagCache => TagCacheGen4;
         public override StringTable StringTable => StringTableGen4;
         public override ResourceCache ResourceCache => ResourceCacheGen4;
@@ -38,6 +42,8 @@ namespace TagTool.Cache
         /// </summary>
         public readonly int PageAlign = 0x800;
 
+        public ulong Expand = 0x0;
+
         public uint TagAddressToOffset(uint address)
         {
             var headerGen4 = (CacheFileHeaderGen4)BaseMapFile.Header;
@@ -47,7 +53,7 @@ namespace TagTool.Cache
                 (ulong)headerGen4.VirtualBaseAddress32;
 
             var unpackedAddress = Platform == CachePlatform.MCC ?
-                (((ulong)address << 2) + 0x50000000) :
+                (((ulong)address << 2) + Expand) :
                 (ulong)address;
 
             return (uint)(unpackedAddress - (baseAddress - (ulong)headerGen4.SectionTable.GetSectionOffset(CacheFileSectionType.TagSection)));
@@ -69,25 +75,17 @@ namespace TagTool.Cache
 
             DisplayName = mapFile.Header.GetName() + ".map";
 
+            if (Platform == CachePlatform.MCC)
+                Expand = (ulong)(Version <= CacheVersion.Halo4 ? 0x4FFF0000 : 0x7AC00000);
+
             Directory = file.Directory;
 
             using(var cacheStream = OpenCacheRead())
             using(var reader = new EndianReader(cacheStream, Endianness))
             {
                 StringTableGen4 = new StringTableGen4(reader, BaseMapFile);
-                TagCacheGen4 = new TagCacheGen4(reader, BaseMapFile, StringTableGen4);
+                TagCacheGen4 = new TagCacheGen4(reader, BaseMapFile, StringTableGen4, Expand);
                 ResourceCacheGen4 = new ResourceCacheGen4(this);
-
-                if(TagCacheGen4.Instances.Count > 0)
-                {
-                    if (Version == CacheVersion.Halo3Beta || headerGen4.SectionTable.Sections[(int)CacheFileSectionType.LocalizationSection].Size == 0)
-                        LocaleTables = new List<LocaleTable>();
-                    else
-                    {
-                        var globals = Deserialize<Globals>(cacheStream, TagCacheGen4.GlobalInstances["matg"]);
-                        LocaleTables = LocalesTableGen4.CreateLocalesTable(reader, BaseMapFile, globals);
-                    }
-                }
             }
 
             // unused but kept for future uses
@@ -108,11 +106,8 @@ namespace TagTool.Cache
 
         #region Serialization
 
-        public override T Deserialize<T>(Stream stream, CachedTag instance) =>
-            Deserialize<T>(new Gen4SerializationContext(stream, this, (CachedTagGen4)instance));
-
-        public override object Deserialize(Stream stream, CachedTag instance) =>
-            Deserialize(new Gen4SerializationContext(stream, this, (CachedTagGen4)instance), TagCache.TagDefinitions.GetTagDefinitionType(instance.Group));
+        public override object Deserialize(Stream stream, CachedTag instance, Type type) =>
+            Deserialize(new Gen4SerializationContext(stream, this, (CachedTagGen4)instance), type);
 
         public override void Serialize(Stream stream, CachedTag instance, object definition)
         {
@@ -179,14 +174,28 @@ namespace TagTool.Cache
             }
         }
 
-        public override bool TryGetTag(string text, out object tag)
+        public override void LoadLocaleTables(Stream stream)
         {
-            throw new NotImplementedException();
-        }
+            if (LocaleTables != null)
+                return;
 
-        public override bool TryParseGroupTag(string value, out object tag)
-        {
-            throw new NotImplementedException();
+            if (TagCacheGen4.Count == 0 || HeaderGen4.SectionTable.Sections[(int)CacheFileSectionType.LocalizationSection].Size == 0)
+                return;
+
+            try
+            {
+                var matg = Deserialize<Globals>(stream, TagCacheGen4.GlobalInstances["matg"]);
+
+                LocaleTables = CacheFileLocaleTables.Load(
+                    new EndianReader(stream, Endianness),
+                    HeaderGen4.SectionTable,
+                    localesKey: Platform == CachePlatform.MCC ? "" : "BungieHaloReach!",
+                    languagePacks: Platform == CachePlatform.MCC ? matg.LanguagePacksMCC : matg.LanguagePacks);
+            }
+            catch
+            {
+                Log.Warning("Failed to build locales table (Invalid Globals definition?)");
+            }
         }
     }
 }

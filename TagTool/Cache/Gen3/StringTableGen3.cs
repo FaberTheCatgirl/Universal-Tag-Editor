@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using TagTool.Common;
 using TagTool.IO;
 using TagTool.BlamFile;
@@ -12,15 +11,13 @@ namespace TagTool.Cache.Gen3
 
         public StringTableGen3(EndianReader reader, MapFile baseMapFile) : base()
         {
-            Version = baseMapFile.Version;
-            
             var gen3Header = (CacheFileHeaderGen3)baseMapFile.Header;
             var stringIDHeader = gen3Header.GetStringIDHeader();
-            var cachePlatform = baseMapFile.CachePlatform;
+            var sectionTable = gen3Header.SectionTable;
 
-            if (cachePlatform == CachePlatform.Original)
+            if (baseMapFile.CachePlatform == CachePlatform.Original)
             {
-                switch (Version)
+                switch (baseMapFile.Version)
                 {
                     case CacheVersion.Halo3Alpha:
                         Resolver = new StringIdResolverHalo3Alpha();
@@ -56,39 +53,11 @@ namespace TagTool.Cache.Gen3
                         break;
 
                     default:
-                        throw new NotSupportedException(CacheVersionDetection.GetBuildName(Version, cachePlatform));
+                        throw new NotSupportedException(CacheVersionDetection.GetBuildName(baseMapFile.Version, baseMapFile.CachePlatform));
                 }
             }
-            else if(cachePlatform == CachePlatform.MCC)
-            {
-                switch (Version)
-                {
-                    case CacheVersion.Halo3Retail:
-                        Resolver = new StringIdResolverHalo3MCC();
-                        break;
-
-                    case CacheVersion.Halo3ODST:
-                        Resolver = new StringIdResolverHalo3ODSTMCC();
-                        break;
-
-                    case CacheVersion.HaloReach:
-                        Resolver = new StringIdResolverHaloReachMCC();
-                        break;
-
-                    case CacheVersion.Halo4:
-                        Resolver = new StringIdResolverHalo4MCC();
-                        break;
-
-                    case CacheVersion.Halo2AMP:
-                        Resolver = new StringIdResolverHalo2AMP();
-                        break;
-
-                    default:
-                        throw new NotSupportedException(CacheVersionDetection.GetBuildName(Version, cachePlatform));
-                }
-            }
-
-            var sectionTable = gen3Header.SectionTable;
+            else if(baseMapFile.CachePlatform == CachePlatform.MCC)
+                Resolver = new StringIdResolverMCC(reader, stringIDHeader, sectionTable);
 
             // means no strings
             if (sectionTable != null && sectionTable.Sections[(int)CacheFileSectionType.StringSection].Size == 0)
@@ -96,7 +65,7 @@ namespace TagTool.Cache.Gen3
 
             uint stringIdIndexTableOffset;
             uint stringIdBufferOffset;
-            if (Version > CacheVersion.Halo3Beta)
+            if (baseMapFile.Version > CacheVersion.Halo3Beta)
             {
                 stringIdIndexTableOffset = sectionTable.GetOffset(CacheFileSectionType.StringSection, stringIDHeader.IndicesOffset);
                 stringIdBufferOffset = sectionTable.GetOffset(CacheFileSectionType.StringSection, stringIDHeader.BufferOffset);
@@ -118,35 +87,24 @@ namespace TagTool.Cache.Gen3
             for (var i = 0; i < stringIDHeader.Count; i++)
             {
                 stringOffset[i] = reader.ReadInt32();
-                Add("");
             }
 
-            reader.SeekTo(stringIdBufferOffset);
-
-            EndianReader newReader;
-
-            if (StringKey == "")
-                newReader = new EndianReader(new MemoryStream(reader.ReadBytes(stringIDHeader.BufferSize)), reader.Format);
-            else
-                newReader = new EndianReader(reader.DecryptAesSegment(stringIDHeader.BufferSize, StringKey), reader.Format);
 
             //
             // Read strings
             //
 
+            reader.SeekTo(stringIdBufferOffset);
+
+            StringBuffer strings = StringKey == ""
+                ? new StringBuffer(reader.ReadBytes(stringIDHeader.BufferSize))
+                : new StringBuffer(reader.DecryptAesSegment(stringIDHeader.BufferSize, StringKey));
+
+            EnsureCapacity(stringOffset.Length);
             for (var i = 0; i < stringOffset.Length; i++)
             {
-                if (stringOffset[i] == -1)
-                {
-                    this[i] = "<null>";
-                    continue;
-                }
-
-                newReader.SeekTo(stringOffset[i]);
-                this[i] = newReader.ReadNullTerminatedString();
+                Add(stringOffset[i] == -1 ? "<null>" : strings.GetString(stringOffset[i]));
             }
-            newReader.Close();
-            newReader.Dispose();
         }
 
         /*

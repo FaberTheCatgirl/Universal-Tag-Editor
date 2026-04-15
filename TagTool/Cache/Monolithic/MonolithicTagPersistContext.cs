@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using TagTool.Common;
 using TagTool.Commands.Common;
+using TagTool.Common.Logging;
 
 namespace TagTool.Cache.Monolithic
 {
@@ -26,17 +27,14 @@ namespace TagTool.Cache.Monolithic
 
         public StringId AddStringId(string stringvalue)
         {
-            var stringId = Cache.StringTableMono.GetStringId(stringvalue);
-            if (stringId == StringId.Invalid)
-                stringId = Cache.StringTableMono.AddString(stringvalue);
-            return stringId;
+            return Cache.StringTableMono.GetOrAddString(stringvalue);
         }
 
         public CachedTag GetTag(Tag groupTag, string name)
         {
             if (Cache.TagCache.TryGetCachedTag($"{name}.{groupTag}", out CachedTag tag))
                 return tag;
-            new TagToolWarning($"Could not resolve referenced tag {name}.{groupTag}");
+            Log.Warning($"Could not resolve referenced tag {name}.{groupTag}");
             return null;
         }
     }

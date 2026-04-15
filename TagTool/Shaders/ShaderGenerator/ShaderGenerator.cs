@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using HaloShaderGenerator;
 using HaloShaderGenerator.Generator;
 using HaloShaderGenerator.Globals;
+using HaloShaderGenerator.Shader;
 using HaloShaderGenerator.Shared;
 using HaloShaderGenerator.TemplateGenerator;
 using TagTool.Cache;
@@ -35,12 +36,7 @@ namespace TagTool.Shaders.ShaderGenerator
     {
         private static StringId AddString(GameCache cache, string str)
         {
-            if (str == "")
-                return StringId.Invalid;
-            var stringId = cache.StringTable.GetStringId(str);
-            if (stringId == StringId.Invalid)
-                stringId = cache.StringTable.AddString(str);
-            return stringId;
+            return cache.StringTable.GetOrAddString(str);
         }
 
         private static List<ShaderParameter> GenerateShaderParametersFromGenerator(GameCache cache, ShaderGeneratorResult result)
@@ -378,7 +374,7 @@ namespace TagTool.Shaders.ShaderGenerator
         {
             if(mappings.Count > 0)
             {
-                table[usage] = new RenderMethodTemplate.TagBlockIndex
+                table[usage] = new TagBlockIndex
                 {
                     Offset = (ushort)rmt2.RoutingInfo.Count,
                     Count = (ushort)mappings.Count
@@ -476,16 +472,16 @@ namespace TagTool.Shaders.ShaderGenerator
 
             rmt2.RoutingInfo = new List<RenderMethodTemplate.RoutingInfoBlock>();
             rmt2.Passes = new List<RenderMethodTemplate.PassBlock>();
-            rmt2.EntryPoints = new List<RenderMethodTemplate.TagBlockIndex>();
+            rmt2.EntryPoints = new List<TagBlockIndex>();
 
             foreach (ShaderStage mode in Enum.GetValues(typeof(ShaderStage)))
             {
-                var entryPoint = new RenderMethodTemplate.TagBlockIndex();
+                var entryPoint = new TagBlockIndex();
 
                 if (generator.IsEntryPointSupported(mode))
                 {
                     while (rmt2.EntryPoints.Count < (int)mode)
-                        rmt2.EntryPoints.Add(new RenderMethodTemplate.TagBlockIndex());
+                        rmt2.EntryPoints.Add(new TagBlockIndex());
 
                     entryPoint.Offset = (ushort)rmt2.Passes.Count();
                     entryPoint.Count = 1;
@@ -494,7 +490,7 @@ namespace TagTool.Shaders.ShaderGenerator
                     var parameterTable = new RenderMethodTemplate.PassBlock();
 
                     for (int i = 0; i < parameterTable.Values.Length; i++)
-                        parameterTable.Values[i] = new RenderMethodTemplate.TagBlockIndex();
+                        parameterTable.Values[i] = new TagBlockIndex();
 
                     rmt2.Passes.Add(parameterTable);
 
@@ -686,11 +682,11 @@ namespace TagTool.Shaders.ShaderGenerator
         }
 
         private static StringId AddStringSafe(GameCache cache, string str)
-        {
+        {   
+            // TODO: not thread safe
+
             var sTable = (StringTableHaloOnline)cache.StringTable;
 
-            if (str == "")
-                return StringId.Invalid;
             var stringId = sTable.GetStringId(str);
             if (stringId == StringId.Invalid)
                 stringId = sTable.AddStringBlocking(str);
@@ -702,7 +698,7 @@ namespace TagTool.Shaders.ShaderGenerator
             switch (shaderType)
             {
                 case HaloShaderGenerator.Globals.ShaderType.Water:
-                    if (categoryName == "waveshape" || categoryName == "global_shape")
+                    if (categoryName == "waveshape" || categoryName == "global_shape" || categoryName == "reach_compatibility")
                         return true;
                     break;
                 case HaloShaderGenerator.Globals.ShaderType.Particle:
@@ -747,11 +743,11 @@ namespace TagTool.Shaders.ShaderGenerator
                             Category = category,
                             PsMacro = "category_" + category,
                             //VsMacro = "category_" + category,
-                            VsMacro = "invalid",
+                            VsMacro = "",
                             Option = option,
                             PsMacroValue = "category_" + category + "_option_" + option,
                             //VsMacroValue = "category_" + category + "_option_" + option
-                            VsMacroValue = "invalid"
+                            VsMacroValue = ""
                         });
                     }
                     // definitions
@@ -762,11 +758,11 @@ namespace TagTool.Shaders.ShaderGenerator
                             Category = category,
                             PsMacro = "category_" + category + "_option_" + cache.StringTable.GetString(rmdf.Categories[i].ShaderOptions[j].Name),
                             //VsMacro = "category_" + category + "_option_" + cache.StringTable.GetString(rmdf.Categories[i].ShaderOptions[j].Name),
-                            VsMacro = "invalid",
+                            VsMacro = "",
                             Option = cache.StringTable.GetString(rmdf.Categories[i].ShaderOptions[j].Name),
                             PsMacroValue = j.ToString(),
                             //VsMacroValue = j.ToString()
-                            VsMacroValue = "invalid"
+                            VsMacroValue = ""
                         });
                     }
                 }
@@ -914,7 +910,7 @@ namespace TagTool.Shaders.ShaderGenerator
                 }
                 else if (ParameterTypeToRegisterType(parameter.Type) == type)
                 {
-                    //new TagToolWarning($"no binding for {constantTable.ShaderType} {(is_extern ? "extern " : "")}{type} \"{parameterName}\"");
+                    //Log.Warning($"no binding for {constantTable.ShaderType} {(is_extern ? "extern " : "")}{type} \"{parameterName}\"");
                 }
             }
 
@@ -1009,7 +1005,7 @@ namespace TagTool.Shaders.ShaderGenerator
                 parameterTypes[name] = (ParameterTypeFlags)Enum.Parse(typeof(ParameterTypeFlags), constant.RegisterType.ToString());
         }
 
-        public static List<RenderMethodOption.ParameterBlock> GatherParameters(GameCache cache, Stream stream, RenderMethodDefinition rmdf, List<byte> options, bool includeGlobal = true)
+        public static List<RenderMethodOption.ParameterBlock> GatherParameters(GameCache cache, Stream stream, RenderMethodDefinition rmdf, ReadOnlySpan<byte> options, bool includeGlobal = true)
         {
             List<RenderMethodOption.ParameterBlock> allRmopParameters = new List<RenderMethodOption.ParameterBlock>();
 
@@ -1027,11 +1023,48 @@ namespace TagTool.Shaders.ShaderGenerator
                 if (rmdf.Categories[i].ShaderOptions.Count == 0)
                     continue;
 
-                var option = rmdf.Categories[i].ShaderOptions[i < options.Count ? options[i] : 0];
+                var option = rmdf.Categories[i].ShaderOptions[i < options.Length ? options[i] : 0];
 
                 if (option.Option != null)
                 {
                     var rmop = cache.Deserialize<RenderMethodOption>(stream, option.Option);
+
+                    foreach (var parameter in rmop.Parameters)
+                    {
+                        if (allRmopParameters.Any(x => x.Name == parameter.Name)) // prevent duplicates
+                            continue;
+
+                        allRmopParameters.Add(parameter);
+                    }
+                }
+            }
+
+            return allRmopParameters;
+        }
+
+        public static List<RenderMethodOption.ParameterBlock> GatherParametersAsync(Dictionary<string, RenderMethodOption> renderMethodOptions, RenderMethodDefinition rmdf, ReadOnlySpan<byte> options, bool includeGlobal = true)
+        {
+            List<RenderMethodOption.ParameterBlock> allRmopParameters = new List<RenderMethodOption.ParameterBlock>();
+
+            if (includeGlobal)
+            {
+                if (rmdf.GlobalOptions != null)
+                {
+                    var globalRmop = renderMethodOptions[rmdf.GlobalOptions.Name];
+                    allRmopParameters.AddRange(globalRmop.Parameters);
+                }
+            }
+
+            for (int i = 0; i < rmdf.Categories.Count; i++)
+            {
+                if (rmdf.Categories[i].ShaderOptions.Count == 0)
+                    continue;
+
+                var option = rmdf.Categories[i].ShaderOptions[i < options.Length ? options[i] : 0];
+
+                if (option.Option != null)
+                {
+                    var rmop = renderMethodOptions[option.Option.Name];
 
                     foreach (var parameter in rmop.Parameters)
                     {
@@ -1059,12 +1092,10 @@ namespace TagTool.Shaders.ShaderGenerator
             var glps = cache.Deserialize<GlobalPixelShader>(stream, rmdf.GlobalPixelShader);
             var glvs = cache.Deserialize<GlobalVertexShader>(stream, rmdf.GlobalVertexShader);
 
-            // get options in numeric array
-            List<byte> options = new List<byte>();
-            foreach (var option in shaderName.Split('\\')[2].Remove(0, 1).Split('_'))
-                options.Add(byte.Parse(option));
 
-            var allRmopParameters = GatherParameters(cache, stream, rmdf, options);
+            Rmt2Descriptor rmt2Desc = Rmt2Descriptor.Parse(shaderName);
+
+            var allRmopParameters = GatherParameters(cache, stream, rmdf, rmt2Desc.Options);
 
             var rmt2 = GenerateTemplate(cache, rmdf, glvs, glps, allRmopParameters, shaderName, out pixl, out vtsh);
 
@@ -1095,7 +1126,7 @@ namespace TagTool.Shaders.ShaderGenerator
             {
                 RoutingInfo = new List<RenderMethodTemplate.RoutingInfoBlock>(),
                 Passes = new List<RenderMethodTemplate.PassBlock>(),
-                EntryPoints = new List<RenderMethodTemplate.TagBlockIndex>(),
+                EntryPoints = new List<TagBlockIndex>(),
                 RealParameterNames = new List<RenderMethodTemplate.ShaderArgument>(),
                 IntegerParameterNames = new List<RenderMethodTemplate.ShaderArgument>(),
                 BooleanParameterNames = new List<RenderMethodTemplate.ShaderArgument>(),
@@ -1175,7 +1206,7 @@ namespace TagTool.Shaders.ShaderGenerator
             }
 
             for (int i = 0; i < Enum.GetValues(typeof(EntryPoint)).Length; i++)
-                rmt2.EntryPoints.Add(new RenderMethodTemplate.TagBlockIndex());
+                rmt2.EntryPoints.Add(new TagBlockIndex());
 
             foreach (var entryBlock in rmdf.EntryPoints)
             {
@@ -1190,7 +1221,7 @@ namespace TagTool.Shaders.ShaderGenerator
                 RenderMethodTemplate.PassBlock pass = new RenderMethodTemplate.PassBlock();
 
                 for (int j = 0; j < (int)ParameterUsage.Count; j++) // init
-                    pass.Values[j] = new RenderMethodTemplate.TagBlockIndex();
+                    pass.Values[j] = new TagBlockIndex();
 
                 // texture extern ps/vs //////////////////////////
 
@@ -1359,6 +1390,8 @@ namespace TagTool.Shaders.ShaderGenerator
             Dictionary<Task<ShaderGeneratorResult>, int> tasks = new Dictionary<Task<ShaderGeneratorResult>, int>(); // <task, entry point>
 
             TemplateGenerator generator = new TemplateGenerator();
+            generator.SetUserMacros(GlobalMacroList.GetUserMacros());
+
             List<OptionInfo> optionInfo = BuildOptionInfo(cache, rmdf, options, shaderType);
 
             for (int i = 0; i < 20; i++)
@@ -1431,6 +1464,7 @@ namespace TagTool.Shaders.ShaderGenerator
                 glps.EntryPoints.Add(new GlobalPixelShader.EntryPointBlock { DefaultCompiledShaderIndex = -1 });
 
             TemplateGenerator generator = new TemplateGenerator();
+            generator.SetUserMacros(GlobalMacroList.GetUserMacros());
 
             foreach (var entryPoint in rmdf.EntryPoints)
             {
@@ -1502,14 +1536,13 @@ namespace TagTool.Shaders.ShaderGenerator
             for (int i = 0; i < Enum.GetValues(typeof(VertexType)).Length; i++)
             {
                 var vertexTypeBlock = new GlobalVertexShader.VertexTypeShaders { EntryPoints = new List<GlobalVertexShader.VertexTypeShaders.GlobalShaderEntryPointBlock>() };
-
-                if (rmdf.VertexTypes.Any(x => x.VertexType == (VertexBlock.VertexTypeValue)i))
-                    for (int j = 0; j < Enum.GetValues(typeof(EntryPoint)).Length; j++)
-                        vertexTypeBlock.EntryPoints.Add(new GlobalVertexShader.VertexTypeShaders.GlobalShaderEntryPointBlock { ShaderIndex = -1 });
+                for (int j = 0; j < Enum.GetValues(typeof(EntryPoint)).Length; j++)
+                    vertexTypeBlock.EntryPoints.Add(new GlobalVertexShader.VertexTypeShaders.GlobalShaderEntryPointBlock { ShaderIndex = -1 });
                 glvs.VertexTypes.Add(vertexTypeBlock);
             }
 
             TemplateGenerator generator = new TemplateGenerator();
+            generator.SetUserMacros(GlobalMacroList.GetUserMacros());
 
             foreach (var vertexTypeBlock in rmdf.VertexTypes)
             {
@@ -1549,74 +1582,11 @@ namespace TagTool.Shaders.ShaderGenerator
             return glvs;
         }
 
-        public static bool VerifyRmt2Routing(GameCache cache, Stream stream, RenderMethodTemplate rmt2, RenderMethodDefinition rmdf, List<byte> options)
-        {
-            bool anyMissing = false;
-
-            var allParameters = GatherParameters(cache, stream, rmdf, options);
-
-            var pixl = cache.Deserialize<PixelShader>(stream, rmt2.PixelShader);
-
-            foreach (var entry in rmdf.EntryPoints)
-            {
-                if (rmt2.EntryPoints[(int)entry.EntryPoint].Count > 0)
-                {
-                    int iEnd = rmt2.EntryPoints[(int)entry.EntryPoint].Count + rmt2.EntryPoints[(int)entry.EntryPoint].Offset;
-                    for (int i = rmt2.EntryPoints[(int)entry.EntryPoint].Offset; i < iEnd; i++)
-                    {
-                        var pass = rmt2.Passes[i];
-
-                        if (pass.Values[(int)ParameterUsage.PS_Real].Count > 0)
-                        {
-                            foreach (var constant in pixl.Shaders[pixl.EntryPointShaders[(int)entry.EntryPoint].Offset].PCConstantTable.Constants)
-                            {
-                                if (constant.RegisterType != ShaderParameter.RType.Vector)
-                                    continue;
-
-                                string constantName = cache.StringTable.GetString(constant.ParameterName);
-                                bool found = false;
-
-                                int jEnd = pass.Values[(int)ParameterUsage.PS_Real].Offset + pass.Values[(int)ParameterUsage.PS_Real].Count;
-                                for (int j = pass.Values[(int)ParameterUsage.PS_Real].Offset; j < jEnd; j++)
-                                {
-                                    if (rmt2.RoutingInfo[j].DestinationIndex == constant.RegisterIndex)
-                                    {
-                                        found = true;
-                                        break;
-                                    }
-                                }
-
-                                if (!found)
-                                {
-                                    jEnd = pass.Values[(int)ParameterUsage.PS_RealExtern].Offset + pass.Values[(int)ParameterUsage.PS_RealExtern].Count;
-                                    for (int j = pass.Values[(int)ParameterUsage.PS_RealExtern].Offset; j < jEnd; j++)
-                                    {
-                                        if (rmt2.RoutingInfo[j].DestinationIndex == constant.RegisterIndex)
-                                        {
-                                            found = true;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (!found)
-                                {
-                                    Console.WriteLine($"WARNING: {constantName} not bound in rmt2");
-                                    anyMissing = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            return !anyMissing;
-        }
-
         public static void GenerateExplicitShader(GameCache cache, Stream stream, string explicitShader, out PixelShader pixl, out VertexShader vtsh)
         {
             ExplicitGenerator generator = new ExplicitGenerator();
-            
+            generator.SetUserMacros(GlobalMacroList.GetUserMacros());
+
             HaloShaderGenerator.Globals.ExplicitShader eExplicitShader = generator.GetExplicitIndex(explicitShader);
             
             List<ShaderStage> supportedEntries = generator.ScrapeEntryPoints(eExplicitShader);
@@ -1654,6 +1624,75 @@ namespace TagTool.Shaders.ShaderGenerator
                         vtsh.EntryPoints[(int)entry].SupportedVertexTypes.Add(new ShortOffsetCountBlock());
 
                     ShaderGeneratorResult vertexResult = generator.GenerateVertexShader(eExplicitShader, entry, vertex);
+
+                    vtsh.EntryPoints[(int)entry].SupportedVertexTypes[(int)vertex].Count = 1;
+                    vtsh.EntryPoints[(int)entry].SupportedVertexTypes[(int)vertex].Offset = (byte)vtsh.Shaders.Count;
+
+                    var vertexShaderBlock = new VertexShaderBlock
+                    {
+                        PCShaderBytecode = vertexResult.Bytecode,
+                        PCConstantTable = BuildConstantTable(cache, vertexResult, ShaderType.VertexShader)
+                    };
+
+                    vtsh.Shaders.Add(vertexShaderBlock);
+                }
+            }
+        }
+
+        public static void GenerateChudShader(GameCache cache, Stream stream, string chudShader, out PixelShader pixl, out VertexShader vtsh)
+        {
+            //ChudShader eChudShader = (ChudShader)Enum.Parse(typeof(ChudShader), chudShader, true);
+
+            List<ShaderStage> supportedEntries = new List<ShaderStage> { ShaderStage.Default };
+
+            switch (chudShader)
+            {
+                case "chud_turbulence":
+                    supportedEntries.Add(ShaderStage.Albedo);
+                    supportedEntries.Add(ShaderStage.Dynamic_Light);
+                    break;
+                case "chud_double_gradient": // ???
+                    chudShader = "chud_meter_double_gradient";
+                    break;
+                case "chud_radial_gradient": // ???
+                    chudShader = "chud_meter_radial_gradient";
+                    break;
+            }
+
+            List<VertexType> supportedVertices = new List<VertexType> { (chudShader == "chud_sensor" ? VertexType.FancyChud : VertexType.SimpleChud) };
+
+            pixl = new PixelShader { EntryPointShaders = new List<ShortOffsetCountBlock>(), Shaders = new List<PixelShaderBlock>() };
+            vtsh = new VertexShader { EntryPoints = new List<VertexShader.VertexShaderEntryPoint>(), Shaders = new List<VertexShaderBlock>() };
+
+            for (int i = 0; i < Enum.GetValues(typeof(ShaderStage)).Length; i++)
+            {
+                pixl.EntryPointShaders.Add(new ShortOffsetCountBlock());
+                vtsh.EntryPoints.Add(new VertexShader.VertexShaderEntryPoint { SupportedVertexTypes = new List<ShortOffsetCountBlock>() });
+            }
+
+            foreach (var entry in supportedEntries)
+            {
+                // pixel shader
+                ShaderGeneratorResult pixelResult = GenericPixelShaderGenerator.GeneratePixelShader(chudShader, entry.ToString().ToLower(), true);
+
+                pixl.EntryPointShaders[(int)entry].Count = 1;
+                pixl.EntryPointShaders[(int)entry].Offset = (byte)pixl.Shaders.Count;
+
+                var pixelShaderBlock = new PixelShaderBlock
+                {
+                    PCShaderBytecode = pixelResult.Bytecode,
+                    PCConstantTable = BuildConstantTable(cache, pixelResult, ShaderType.PixelShader)
+                };
+
+                pixl.Shaders.Add(pixelShaderBlock);
+
+                // vertex shaders
+                foreach (var vertex in supportedVertices)
+                {
+                    for (int i = 0; vtsh.EntryPoints[(int)entry].SupportedVertexTypes.Count <= (int)vertex; i++)
+                        vtsh.EntryPoints[(int)entry].SupportedVertexTypes.Add(new ShortOffsetCountBlock());
+
+                    ShaderGeneratorResult vertexResult = GenericVertexShaderGenerator.GenerateVertexShader(chudShader, entry.ToString().ToLower(), vertex, true);
 
                     vtsh.EntryPoints[(int)entry].SupportedVertexTypes[(int)vertex].Count = 1;
                     vtsh.EntryPoints[(int)entry].SupportedVertexTypes[(int)vertex].Offset = (byte)vtsh.Shaders.Count;

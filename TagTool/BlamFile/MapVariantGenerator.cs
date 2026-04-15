@@ -6,6 +6,7 @@ using System.Linq;
 using TagTool.Cache;
 using TagTool.Commands.Common;
 using TagTool.Common;
+using TagTool.Common.Logging;
 using TagTool.Tags;
 using TagTool.Tags.Definitions;
 using TagTool.Tags.Definitions.Common;
@@ -269,7 +270,7 @@ namespace TagTool.BlamFile
 
             if (parentNameIndex < 0 || parentNameIndex >= _scenario.ObjectNames.Count)
             {
-                new TagToolWarning($"Parent object #{parentNameIndex} not found!");
+                Log.Warning($"Parent object #{parentNameIndex} not found!");
                 return;
             }
 
@@ -465,7 +466,7 @@ namespace TagTool.BlamFile
         private bool ObjectIsEarlyMover(CachedTag tag)
         {
             var obje = _cache.Deserialize(_cacheStream, tag) as GameObject;
-            return obje.ObjectFlags.HasFlag(ObjectDefinitionFlags.EarlyMoverLocalizedPhysics);
+            return obje.ObjectFlags.Test(ObjectDefinitionFlags.EarlyMoverLocalizedPhysics);
         }
 
         public bool ObjectIsForgeable(CachedTag tag)

@@ -3,6 +3,8 @@ using TagTool.Common;
 using TagTool.Shaders;
 using System.Collections.Generic;
 using System;
+using System.IO;
+using System.Linq;
 
 namespace TagTool.Tags.Definitions
 {
@@ -152,6 +154,54 @@ namespace TagTool.Tags.Definitions
                     return true;
             }
             return false;
+        }
+
+        public string GetCategoryOption(GameCache cache, string categoryName, byte[] options)
+        {
+            for (int i = 0; i < Categories.Count; i++)
+            {
+                if (cache.StringTable.GetString(Categories[i].Name) == categoryName)
+                    return cache.StringTable.GetString(Categories[i].ShaderOptions[options[i]].Name);
+            }
+            return "INVALID_CATEGORY";
+        }
+
+        public int GetCategoryOptionIndex(GameCache cache, string categoryName, string optionName)
+        {
+            for (int i = 0; i < Categories.Count; i++)
+            {
+                if (cache.StringTable.GetString(Categories[i].Name) == categoryName)
+                {
+                    for (int j = 0; j < Categories[i].ShaderOptions.Count; j++)
+                    {
+                        if (cache.StringTable.GetString(Categories[i].ShaderOptions[j].Name) == optionName)
+                            return j;
+                    }
+                    break;
+                }
+            }
+            return -1;
+        }
+        
+        public Dictionary<string,string> GetCategoryOptionMapping(GameCache cache, int[] optionIndices)
+        {
+            if (optionIndices.Length != Categories.Count)
+                new ArgumentException($"Array length does not equal rmdf category count", nameof(optionIndices));
+
+            return Categories.Zip(optionIndices).ToDictionary(
+                c => cache.StringTable.GetString(c.First.Name),
+                c => cache.StringTable.GetString(c.First.ShaderOptions[c.Second].Name));
+        }
+
+        public Dictionary<string, string> GetCategoryOptionMapping(GameCache cache, CachedTag tag)
+        {
+            if (!tag.IsInGroup("rmt2"))
+                new ArgumentException($"Tag is not in group \"render_method_template\"", nameof(tag));
+
+            string str = tag.Name.Split('\\').Last();
+            int[] indices = [.. str.Split('_', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse)];
+
+            return GetCategoryOptionMapping(cache, indices);
         }
     }
 }

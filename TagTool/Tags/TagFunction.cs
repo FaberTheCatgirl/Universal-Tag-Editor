@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using TagTool.Common;
 using TagTool.IO;
 
 namespace TagTool.Tags
 {
-    [TagStructure(Size = 0x8, MaxVersion = Cache.CacheVersion.Halo2Vista)]
+    [TagStructure(Size = 0x8, MaxVersion = Cache.CacheVersion.Halo2PC)]
     [TagStructure(Size = 0x14, MinVersion = Cache.CacheVersion.Halo3Beta)]
     public class TagFunction : TagStructure
     {
@@ -867,5 +868,16 @@ namespace TagTool.Tags
             }
         }
 
+        public override string ToString()
+        {
+            if (Data == null)
+                return "null";
+
+            StringBuilder sb = new();
+            for (int i = 0; i < Data.Length; i++)
+                sb.Append(((int)Data[i]).ToString("X2"));
+
+            return sb.ToString();
+        }
     }
 }

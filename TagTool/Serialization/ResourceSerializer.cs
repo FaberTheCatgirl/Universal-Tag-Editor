@@ -9,6 +9,7 @@ using TagTool.Tags.Resources;
 using static TagTool.Tags.Resources.BitmapTextureInteropResource;
 using TagTool.Geometry;
 using TagTool.Cache.Resources;
+using System.Collections;
 
 namespace TagTool.Serialization
 {
@@ -32,12 +33,11 @@ namespace TagTool.Serialization
             var resourceContext = context as ResourceDefinitionSerializationContext;
 
             // Serialize the structure to a data block
-            var info = TagStructure.GetTagStructureInfo(tagStructure.GetType(), Version, CachePlatform);
+            var info = StructCache.GetTagStructureInfo(tagStructure.GetType());
             context.BeginSerialize(info);
             var tagStream = new MemoryStream();
             var structBlock = (ResourceDefinitionSerializationContext.ResourceDefinitionDataBlock)context.CreateBlock();
             structBlock.BlockType = resourceContext.InitialAddressType;
-            structBlock.Writer.Format = Format;
             SerializeStruct(context, tagStream, structBlock, info, tagStructure);
 
             // Finalize the block and write all of the tag data out
@@ -126,7 +126,7 @@ namespace TagTool.Serialization
             writer.Write(0);
         }
 
-        public override void SerializeTagBlock(ISerializationContext context, MemoryStream tagStream, IDataBlock block, object list, Type listType, TagFieldAttribute valueInfo)
+        public override void SerializeTagBlock(ISerializationContext context, MemoryStream tagStream, IDataBlock block, ITagBlock list, Type listType, TagFieldAttribute valueInfo)
         {
             if (context.GetType() != typeof(ResourceDefinitionSerializationContext))
                 throw new Exception($"Invalid context type given resource deserialization");
@@ -141,9 +141,7 @@ namespace TagTool.Serialization
             var count = 0;
             if (list != null)
             {
-                // Use reflection to get the number of elements in the list
-                var countProperty = listType.GetProperty("Count");
-                count = (int)countProperty.GetValue(list);
+                count = list.Count;
             }
             if (count == 0)
             {
@@ -155,17 +153,14 @@ namespace TagTool.Serialization
 
             var elementType = listType.GenericTypeArguments[0];
 
-            CacheAddressType addressType = (CacheAddressType)listType.GetField("AddressType").GetValue(list);
+            CacheAddressType addressType = list.AddressType;
 
             // Serialize each value in the list to a data block
             var resourceBlock2 = (ResourceDefinitionSerializationContext.ResourceDefinitionDataBlock)resourceContext.CreateBlock();
             resourceBlock2.BlockType = addressType;
             var addressTypeStream = (MemoryStream)resourceContext.GetWriter(addressType).BaseStream;
 
-            var enumerableList = (System.Collections.IEnumerable)list;
-
-            foreach (var val in enumerableList)
-                SerializeValue(resourceContext, tagStream, resourceBlock2, val, null, elementType);
+            SerializeTagBlockCore(resourceContext, tagStream, resourceBlock2, elementType, list);
 
             // Ensure the block is aligned correctly
             var align = 0x10;
@@ -201,7 +196,7 @@ namespace TagTool.Serialization
             writer.Write(0);
         }
 
-        public override void SerializeD3DStructure(ISerializationContext context, MemoryStream tagStream, IDataBlock block, object val, Type valueType)
+        public override void SerializeD3DStructure(ISerializationContext context, MemoryStream tagStream, IDataBlock block, ID3DStructure val, Type valueType)
         {
             if (context.GetType() != typeof(ResourceDefinitionSerializationContext))
                 throw new Exception($"Invalid context type given resource deserialization");
@@ -222,14 +217,13 @@ namespace TagTool.Serialization
                 return;
             }
 
-            var addressType = (CacheAddressType)valueType.GetField("AddressType").GetValue(val);
+            var addressType = val.AddressType;
             var nextStream = (MemoryStream)resourceContext.GetWriter(addressType).BaseStream;
             var genericType = valueType.GenericTypeArguments[0];
-            var def = valueType.GetField("Definition").GetValue(val);
             // Serialize the value to a temporary block
             var resourceBlock2 = (ResourceDefinitionSerializationContext.ResourceDefinitionDataBlock)context.CreateBlock();
             resourceBlock2.BlockType = addressType;
-            SerializeValue(context, tagStream, resourceBlock2, def, null, genericType);
+            SerializeValue(context, tagStream, resourceBlock2, val.Definition, null, genericType);
 
             // Finalize the block and write the pointer
 

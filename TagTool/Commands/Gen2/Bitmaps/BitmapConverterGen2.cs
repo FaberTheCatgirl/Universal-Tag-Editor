@@ -1,19 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO.Compression;
+using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Numerics;
+using System.Resources;
 using System.Text;
 using System.Threading.Tasks;
 using TagTool.Bitmaps;
+using TagTool.Bitmaps.DDS;
+using TagTool.Bitmaps.Utils;
+using TagTool.Cache;
+using TagTool.Cache.Resources;
 using TagTool.Commands.Common;
 using TagTool.Common;
+using TagTool.Common.Logging;
 using TagTool.IO;
 using TagTool.Tags.Definitions;
+using TagTool.Tags.Resources;
 using BitmapGen2 = TagTool.Tags.Definitions.Gen2.Bitmap;
-using TagTool.Cache;
-using TagTool.Bitmaps.DDS;
 
 namespace TagTool.Commands.Gen2.Bitmaps
 {
@@ -41,11 +47,11 @@ namespace TagTool.Commands.Gen2.Bitmaps
             byte[] rawBitmapData = cache.GetCacheRawData((uint)gen2Img.Lod0Pointer, gen2Img.Lod0Size);
 
             //h2v raw bitmap data is gz compressed
-            if (cache.Version == TagTool.Cache.CacheVersion.Halo2Vista)
+            if (cache.Version == CacheVersion.Halo2PC)
             {
                 using (var stream = new MemoryStream(rawBitmapData))
                 using (var resultStream = new MemoryStream())
-                using (var zstream = new GZipStream(stream, CompressionMode.Decompress))
+                using (var zstream = new ZLibStream(stream, CompressionMode.Decompress))
                 {
                     zstream.CopyTo(resultStream);
                     rawBitmapData = resultStream.ToArray();
@@ -109,34 +115,62 @@ namespace TagTool.Commands.Gen2.Bitmaps
             return newImg;
         }
 
-        public static void PostprocessBitmap(BaseBitmap baseBitmap, BitmapGen2 bitm, Bitmap.Image image, string gen2TagName)
+        public static void PostprocessBitmap(Bitmap newBitmap, BitmapGen2 gen2Bitmap, GameCache cacheContext)
         {
-            // convert XRGB8 bumpmaps to DXN
-            if (image.Format == BitmapFormat.X8R8G8B8 && bitm.Usage == BitmapGen2.UsageValue.HeightMap)
+            for(var i = 0; i < newBitmap.Images.Count; i++)
             {
-                // convert to raw RGBA
-                byte[] rawData = BitmapDecoder.DecodeBitmap(baseBitmap.Data, image.Format, image.Width, image.Height);
+                var image = newBitmap.Images[i];
 
-                for (int i = 0; i < rawData.Length; i += 4)
+                // convert XRGB8 bumpmaps to DXN
+                if (image.Format == BitmapFormat.X8R8G8B8 && gen2Bitmap.Usage == BitmapGen2.UsageValue.HeightMap)
                 {
-                    rawData[i + 0] = rawData[i + 0];//(byte)((((rawData[i + 0] / 255.0f) + 1.007874015748031f) / 2.007874015748031f) * 255.0f);
-                    rawData[i + 1] = rawData[i + 1];//(byte)((((rawData[i + 1] / 255.0f) + 1.007874015748031f) / 2.007874015748031f) * 255.0f);
-                    rawData[i + 2] = rawData[i + 2];//(byte)((((rawData[i + 2] / 255.0f) + 1.007874015748031f) / 2.007874015748031f) * 255.0f);
-                    rawData[i + 3] = 0xFF;
+                    // for d3d9 dxn mips need to be >= 4x4 to avoid crashes
+                    int mipCount = BitmapUtils.GetMipmapCountTruncate(image.Width, image.Height, 4, 4);
+
+                    int layerCount = image.Type == BitmapType.CubeMap ? 6 : image.Depth;
+
+                    // for each layer extract the base level and generate mips
+
+                    var resourceDefinition = cacheContext.ResourceCache.GetBitmapTextureInteropResource(newBitmap.HardwareTextures[i]);
+
+                    var newSurfaces = new List<MipMap>();
+                    for (int layerIndex = 0; layerIndex < layerCount; layerIndex++)
+                    {
+                        byte[] baseLevelData = BitmapUtilsPC.GetBitmapLevelData(resourceDefinition.Texture.Definition, newBitmap, i, 0, layerIndex);
+                        baseLevelData = BitmapDecoder.DecodeBitmap(baseLevelData, image.Format, image.Width, image.Height, cacheContext.Version, cacheContext.Platform);
+
+                        var mipGenerator = new MipMapGenerator();
+                        mipGenerator.GenerateMipMap(image.Width, image.Height, baseLevelData, 4, mipCount);
+                        while (mipGenerator.MipMaps.Count > mipCount)
+                            mipGenerator.MipMaps.RemoveAt(mipGenerator.MipMaps.Count - 1);
+
+                        // append the base level to the list of surfaces
+                        newSurfaces.Add(new MipMap(baseLevelData, image.Width, image.Height));
+                        // append the mips to the list of surfaces
+                        newSurfaces.AddRange(mipGenerator.MipMaps);
+                    }
+
+                    // re-encode the surface and append to the result data in the correct order
+
+                    var result = new MemoryStream();
+                    foreach (var (layerIndex, mipLevel) in BitmapUtils.GetBitmapSurfacesEnumerable(layerCount, mipCount, forDDS: false))
+                    {
+                        MipMap surface = newSurfaces[layerIndex * mipCount + mipLevel];
+                        byte[] encoded = BitmapDecoder.EncodeBitmap(surface.Data, BitmapFormat.Dxn, surface.Width, surface.Height);
+                        result.Write(encoded, 0, encoded.Length);
+                    }
+
+                    // rebuld the result bitmap
+
+                    BaseBitmap resultBitmap = new BaseBitmap(image, result.ToArray());
+                    resultBitmap.MipMapCount = mipCount;
+                    resultBitmap.UpdateFormat(BitmapFormat.Dxn);
+
+                    BitmapTextureInteropResource newResourceDefinition = BitmapUtils.CreateBitmapTextureInteropResource(resultBitmap);
+                    var hoCache = (GameCacheHaloOnlineBase)cacheContext;
+                    hoCache.ResourceCaches.ReplaceResource(newBitmap.HardwareTextures[i].HaloOnlinePageableResource, newResourceDefinition);
                 }
-
-                baseBitmap.Data = TagTool.Bitmaps.Utils.BitmapConverter.EncodeDXN(rawData, image.Width, image.Height, out baseBitmap.MipMapCount, true);
-
-                // Swap R and G channel (DX9 ATI2N)
-                baseBitmap.Data = BitmapDecoder.SwapXYDxn(baseBitmap.Data, image.Width, image.Height);
-                // Prevent memory allocation crash
-                TagTool.Bitmaps.Utils.BitmapConverter.TrimLowestMipmaps(baseBitmap);
-                image.MipmapCount = (sbyte)(baseBitmap.MipMapCount - 1);
-
-                baseBitmap.UpdateFormat(BitmapFormat.Dxn);
-                baseBitmap.Flags |= BitmapFlags.Compressed;
-                image.Format = BitmapFormat.Dxn;
-            }
+            }            
         }
 
         private static byte[] ConvertP8BitmapData(byte[] data)
@@ -226,7 +260,7 @@ namespace TagTool.Commands.Gen2.Bitmaps
                 return result;
             else
             {
-                new TagToolError(CommandError.None, $"Failed to find bitmap format matching {format}");
+                Log.Error($"Failed to find bitmap format matching {format}");
                 return BitmapFormat.A8R8G8B8;
             }
         }

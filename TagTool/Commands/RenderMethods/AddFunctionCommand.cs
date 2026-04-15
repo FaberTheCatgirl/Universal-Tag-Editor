@@ -6,6 +6,7 @@ using TagTool.Tags;
 using TagTool.Tags.Definitions;
 using TagTool.Shaders.ShaderFunctions;
 using System.Linq;
+using TagTool.Common.Logging;
 
 namespace TagTool.Commands.RenderMethods
 {
@@ -40,10 +41,10 @@ namespace TagTool.Commands.RenderMethods
                 Definition.ShaderProperties[0].Template == null)
                 return new TagToolError(CommandError.CustomError, "Invalid shader properties.");
 
-            string parameterName = args[0];
+            string parameterName = args[0].ToLower();
 
             ShaderFunctionHelper.ParameterType parameterType;
-            if (!Enum.TryParse(args[1], out parameterType))
+            if (!Enum.TryParse(args[1], true, out parameterType))
                 return new TagToolError(CommandError.ArgInvalid, $"\"{args[1]}\"");
             if (parameterType == ShaderFunctionHelper.ParameterType.Bool || parameterType == ShaderFunctionHelper.ParameterType.Int)
                 return new TagToolError(CommandError.ArgInvalid, $"\"{args[1]}\"");
@@ -69,7 +70,7 @@ namespace TagTool.Commands.RenderMethods
             if (functionIndex >= properties.Functions.Count || newBlock)
             {
                 if (properties.Functions.Count != 0 && !newBlock)
-                    new TagToolWarning($"Function block at index {functionIndex} does not exist; a new function block with blank data will be added.");
+                    Log.Warning($"Function block at index {functionIndex} does not exist; a new function block with blank data will be added.");
 
                 properties.Functions.Add(new RenderMethod.RenderMethodAnimatedParameterBlock
                 {
@@ -131,7 +132,7 @@ namespace TagTool.Commands.RenderMethods
                 };
 
                 if (animatedParameters.Contains(newParameter))
-                    new TagToolWarning("The specified parameter is already being animated.");
+                    Log.Warning("The specified parameter is already being animated.");
                 else
                     animatedParameters.Add(newParameter);
 

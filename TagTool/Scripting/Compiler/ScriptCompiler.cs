@@ -5,6 +5,7 @@ using System.Linq;
 using TagTool.Ai;
 using TagTool.Cache;
 using TagTool.Common;
+using TagTool.Tags;
 using TagTool.Tags.Definitions;
 using TagTool.Tags.Definitions.Common;
 
@@ -26,6 +27,8 @@ namespace TagTool.Scripting.Compiler
         private ushort NextIdentifier = 0xE37F;
         private HsScript CurrentScript = null;
 
+        private bool IgnoreExternDuplicates;
+
         public ScriptCompiler(GameCache cache, Scenario definition)
         {
             Cache = cache;
@@ -38,6 +41,41 @@ namespace TagTool.Scripting.Compiler
 
             StringWriter = new BinaryWriter(new MemoryStream());
             StringOffsets = new Dictionary<string, uint>();
+
+            IgnoreExternDuplicates = false;
+        }
+
+        public void AppendCompileFile(FileInfo file)
+        {
+            IgnoreExternDuplicates = true;
+
+            //
+            // Reuse exisitng scripts before compiling new ones
+            //
+
+            Scripts = Definition.Scripts;
+            Globals = Definition.Globals;
+            ScriptExpressions = Definition.ScriptExpressions;
+
+            var memoryStream = new MemoryStream(Definition.ScriptStrings);
+            var binaryReader = new BinaryReader(memoryStream);
+            StringWriter = new BinaryWriter(new MemoryStream());
+
+            // Copy data from BinaryReader to StringWriter
+            var buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = binaryReader.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                StringWriter.Write(buffer, 0, bytesRead);
+            }
+
+            // Set the position of StringWriter
+            StringWriter.BaseStream.Position = memoryStream.Length;
+
+            ScriptSourceFileReferences = Definition.ScriptSourceFileReferences;
+
+            //proceed normally
+            CompileFile(file);
         }
 
         public void CompileFile(FileInfo file)
@@ -151,6 +189,8 @@ namespace TagTool.Scripting.Compiler
 
             if (!Enum.TryParse(symbol.Value, true, out result.HaloOnline))
                 result.HaloOnline = HsType.HaloOnlineValue.Invalid;
+            if (!Enum.TryParse(symbol.Value, true, out result))
+                result = HsType.Invalid;
 
             if (!Enum.TryParse(symbol.Value, true, out result.HaloReach11883))
                 result.HaloReach11883 = HsType.HaloReach11883Value.Invalid;
@@ -226,7 +266,7 @@ namespace TagTool.Scripting.Compiler
             if (!(declTailGroup.Tail is ScriptGroup declTailTailGroup))
                 throw new FormatException(declTailGroup.Tail.ToString());
 
-            var globalInit = CompileExpression(globalType.HaloOnline, declTailTailGroup.Head);
+            var globalInit = CompileExpression(globalType, declTailTailGroup.Head);
 
             //
             // Add an entry to the globals block in the scenario definition
@@ -271,7 +311,7 @@ namespace TagTool.Scripting.Compiler
             var scriptReturnType = ParseHsType(declTailGroup.Head);
 
             bool skipReturnType = false;
-            if (scriptReturnType.HaloOnline == HsType.HaloOnlineValue.Invalid)
+            if (scriptReturnType == HsType.Invalid)
             {
                 var result = new HsType();
                 result.Halo3Alpha = HsType.Halo3AlphaValue.Void;
@@ -283,6 +323,7 @@ namespace TagTool.Scripting.Compiler
                 result.HaloReachBeta = HsType.HaloReachBetaValue.Void;
                 result.HaloReach = HsType.HaloReachValue.Void;
                 scriptReturnType = result;
+                scriptReturnType = HsType.Void;
                 skipReturnType = true;
             }
 
@@ -407,11 +448,14 @@ namespace TagTool.Scripting.Compiler
                 if (s.ScriptName != scriptName || s.Parameters.Count != scriptParams.Count)
                     continue;
 
+                if (IgnoreExternDuplicates && s.Type == HsScriptType.Extern && script.Type == HsScriptType.Extern)
+                    return;
+
                 exists = true;
 
                 for (var i = 0; i < scriptParams.Count; i++)
                 {
-                    if (s.Parameters[i].Type.HaloOnline != scriptParams[i].Type.HaloOnline)
+                    if (s.Parameters[i].Type != scriptParams[i].Type)
                     {
                         exists = false;
                         break;
@@ -459,7 +503,7 @@ namespace TagTool.Scripting.Compiler
             var scriptReturnType = ParseHsType(declTailGroup.Head);
 
             bool skipReturnType = false;
-            if (scriptReturnType.HaloOnline == HsType.HaloOnlineValue.Invalid)
+            if (scriptReturnType == HsType.Invalid)
             {
                 var result = new HsType();
                 result.Halo3Alpha = HsType.Halo3AlphaValue.Void;
@@ -471,6 +515,7 @@ namespace TagTool.Scripting.Compiler
                 result.HaloReachBeta = HsType.HaloReachBetaValue.Void;
                 result.HaloReach = HsType.HaloReachValue.Void;
                 scriptReturnType = result;
+                scriptReturnType = HsType.Void;
                 skipReturnType = true;
             }
 
@@ -586,7 +631,7 @@ namespace TagTool.Scripting.Compiler
 
                 for (var i = 0; i < scriptParams.Count; i++)
                 {
-                    if (s.Parameters[i].Type.HaloOnline != scriptParams[i].Type.HaloOnline)
+                    if (s.Parameters[i].Type != scriptParams[i].Type)
                     {
                         script = null;
                         break;
@@ -603,7 +648,7 @@ namespace TagTool.Scripting.Compiler
             CurrentScript = script;
 
             script.RootExpressionHandle = CompileExpression(
-                scriptReturnType.HaloOnline,
+                scriptReturnType,
                 new ScriptGroup
                 {
                     Head = new ScriptSymbol { Value = "begin" },
@@ -613,7 +658,7 @@ namespace TagTool.Scripting.Compiler
             CurrentScript = null;
         }
 
-        private DatumHandle CompileExpression(HsType.HaloOnlineValue type, IScriptSyntax node)
+        private DatumHandle CompileExpression(HsType type, IScriptSyntax node)
         {
             if (node is ScriptGroup group)
                 return CompileGroupExpression(type, group);
@@ -637,14 +682,14 @@ namespace TagTool.Scripting.Compiler
                     if (global.Name == symbol.Value)
                         return CompileGlobalReference(symbol, global);
 
-                foreach (var global in ScriptInfo.Globals[(Cache.Version, Cache.Platform)])
+                foreach (var global in Cache.ScriptDefinitions.Globals)
                     if (global.Value == symbol.Value)
                         return CompileGlobalReference(symbol, type, global.Value, (ushort)(global.Key | 0x8000));
             }
 
             switch (type)
             {
-                case HsType.HaloOnlineValue.Unparsed:
+                case HsType.Unparsed:
                     switch (node)
                     {
                         case ScriptBoolean unparsedBoolean:
@@ -660,12 +705,12 @@ namespace TagTool.Scripting.Compiler
                     }
                     break;
 
-                case HsType.HaloOnlineValue.Boolean:
+                case HsType.Boolean:
                     if (node is ScriptBoolean boolValue)
                         return CompileBooleanExpression(boolValue);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Real:
+                case HsType.Real:
                     if (node is ScriptReal realValue)
                         return CompileRealExpression(realValue);
                     else if (node is ScriptInteger realIntegerValue)
@@ -676,363 +721,363 @@ namespace TagTool.Scripting.Compiler
                         });
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Short:
+                case HsType.Short:
                     if (node is ScriptInteger shortValue)
                         return CompileShortExpression(shortValue);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Long:
+                case HsType.Long:
                     if (node is ScriptInteger longValue)
                         return CompileLongExpression(longValue);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.String:
+                case HsType.String:
                     if (node is ScriptString stringValue)
                         return CompileStringExpression(stringValue);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Script:
+                case HsType.Script:
                     if (node is ScriptSymbol scriptSymbol)
                         return CompileScriptExpression(scriptSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.StringId:
+                case HsType.StringId:
                     if (node is ScriptString stringIdString)
                         return CompileStringIdExpression(stringIdString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.UnitSeatMapping:
+                case HsType.UnitSeatMapping:
                     if (node is ScriptSymbol unitSeatMappingSymbol && unitSeatMappingSymbol.Value == "none")
                         return CompileUnitSeatMappingExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString unitSeatMappingString)
                         return CompileUnitSeatMappingExpression(unitSeatMappingString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.TriggerVolume:
+                case HsType.TriggerVolume:
                     if (node is ScriptString triggerVolumeString)
                         return CompileTriggerVolumeExpression(triggerVolumeString);
                     else if (node is ScriptSymbol triggerVolumeSymbolString)
                         return CompileTriggerVolumeExpression(new ScriptString { Value = triggerVolumeSymbolString.Value });
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.CutsceneFlag:
+                case HsType.CutsceneFlag:
                     if (node is ScriptString cutsceneFlagString)
                         return CompileCutsceneFlagExpression(cutsceneFlagString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.CutsceneCameraPoint:
+                case HsType.CutsceneCameraPoint:
                     if (node is ScriptString cutsceneCameraPointString)
                         return CompileCutsceneCameraPointExpression(cutsceneCameraPointString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.CutsceneTitle:
+                case HsType.CutsceneTitle:
                     if (node is ScriptSymbol cutsceneTitleSymbol)
                         return CompileCutsceneTitleExpression(cutsceneTitleSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.CutsceneRecording:
+                case HsType.CutsceneRecording:
                     if (node is ScriptString cutsceneRecordingString)
                         return CompileCutsceneRecordingExpression(cutsceneRecordingString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.DeviceGroup:
+                case HsType.DeviceGroup:
                     if (node is ScriptString deviceGroupString)
                         return CompileDeviceGroupExpression(deviceGroupString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Ai:
+                case HsType.Ai:
                     if (node is ScriptSymbol aiSymbol && aiSymbol.Value == "none")
                         return CompileAiExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString aiString)
                         return CompileAiExpression(aiString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.AiCommandList:
+                case HsType.AiCommandList:
                     if (node is ScriptString aiCommandListString)
                         return CompileAiCommandListExpression(aiCommandListString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.AiCommandScript:
+                case HsType.AiCommandScript:
                     if (node is ScriptString aiCommandScriptString)
                         return CompileAiCommandScriptExpression(aiCommandScriptString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.AiBehavior:
+                case HsType.AiBehavior:
                     if (node is ScriptString aiBehaviorString)
                         return CompileAiBehaviorExpression(aiBehaviorString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.AiOrders:
+                case HsType.AiOrders:
                     if (node is ScriptString aiOrdersString)
                         return CompileAiOrdersExpression(aiOrdersString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.AiLine:
+                case HsType.AiLine:
                     if (node is ScriptString aiLineString)
                         return CompileAiLineExpression(aiLineString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.StartingProfile:
+                case HsType.StartingProfile:
                     if (node is ScriptString startingProfileString)
                         return CompileStartingProfileExpression(startingProfileString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Conversation:
+                case HsType.Conversation:
                     if (node is ScriptString conversationString)
                         return CompileConversationExpression(conversationString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.ZoneSet:
+                case HsType.ZoneSet:
                     if (node is ScriptString zoneSetString)
                         return CompileZoneSetExpression(zoneSetString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.DesignerZone:
+                case HsType.DesignerZone:
                     if (node is ScriptString designerZoneString)
                         return CompileDesignerZoneExpression(designerZoneString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.PointReference:
+                case HsType.PointReference:
                     if (node is ScriptString pointReferenceString)
                         return CompilePointReferenceExpression(pointReferenceString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Style:
+                case HsType.Style:
                     if (node is ScriptString styleString)
                         return CompileStyleExpression(styleString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.ObjectList:
+                case HsType.ObjectList:
                     if (node is ScriptString objectListString)
                         return CompileObjectListExpression(objectListString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Folder:
+                case HsType.Folder:
                     if (node is ScriptSymbol folderSymbol && folderSymbol.Value == "none")
                         return CompileFolderExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString folderString)
                         return CompileFolderExpression(folderString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Sound:
+                case HsType.Sound:
                     if (node is ScriptSymbol soundSymbol && soundSymbol.Value == "none")
                         return CompileSoundExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString soundString)
                         return CompileSoundExpression(soundString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Effect:
+                case HsType.Effect:
                     if (node is ScriptSymbol effectSymbol && effectSymbol.Value == "none")
                         return CompileEffectExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString effectString)
                         return CompileEffectExpression(effectString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Damage:
+                case HsType.Damage:
                     if (node is ScriptSymbol damageSymbol && damageSymbol.Value == "none")
                         return CompileDamageExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString damageString)
                         return CompileDamageExpression(damageString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.LoopingSound:
+                case HsType.LoopingSound:
                     if (node is ScriptSymbol loopingSoundSymbol && loopingSoundSymbol.Value == "none")
                         return CompileLoopingSoundExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString loopingSoundString)
                         return CompileLoopingSoundExpression(loopingSoundString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.AnimationGraph:
+                case HsType.AnimationGraph:
                     if (node is ScriptSymbol animationGraphSymbol && animationGraphSymbol.Value == "none")
                         return CompileAnimationGraphExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString animationGraphString)
                         return CompileAnimationGraphExpression(animationGraphString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.DamageEffect:
+                case HsType.DamageEffect:
                     if (node is ScriptSymbol damageEffectSymbol && damageEffectSymbol.Value == "none")
                         return CompileDamageEffectExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString damageEffectString)
                         return CompileDamageEffectExpression(damageEffectString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.ObjectDefinition:
+                case HsType.ObjectDefinition:
                     if (node is ScriptSymbol objectDefinitionSymbol && objectDefinitionSymbol.Value == "none")
                         return CompileObjectDefinitionExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString objectDefinitionString)
                         return CompileObjectDefinitionExpression(objectDefinitionString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Bitmap:
+                case HsType.Bitmap:
                     if (node is ScriptSymbol bitmapSymbol && bitmapSymbol.Value == "none")
                         return CompileBitmapExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString bitmapString)
                         return CompileBitmapExpression(bitmapString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Shader:
+                case HsType.Shader:
                     if (node is ScriptSymbol shaderSymbol && shaderSymbol.Value == "none")
                         return CompileShaderExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString shaderString)
                         return CompileShaderExpression(shaderString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.RenderModel:
+                case HsType.RenderModel:
                     if (node is ScriptSymbol renderModelSymbol && renderModelSymbol.Value == "none")
                         return CompileRenderModelExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString renderModelString)
                         return CompileRenderModelExpression(renderModelString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.StructureDefinition:
+                case HsType.StructureDefinition:
                     if (node is ScriptSymbol structureDefinitionSymbol && structureDefinitionSymbol.Value == "none")
                         return CompileStructureDefinitionExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString structureDefinitionString)
                         return CompileStructureDefinitionExpression(structureDefinitionString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.LightmapDefinition:
+                case HsType.LightmapDefinition:
                     if (node is ScriptSymbol lightmapDefinitionSymbol && lightmapDefinitionSymbol.Value == "none")
                         return CompileLightmapDefinitionExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString lightmapDefinitionString)
                         return CompileLightmapDefinitionExpression(lightmapDefinitionString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.CinematicDefinition:
+                case HsType.CinematicDefinition:
                     if (node is ScriptSymbol cinematicDefinitionSymbol && cinematicDefinitionSymbol.Value == "none")
                         return CompileCinematicDefinitionExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString cinematicDefinitionString)
                         return CompileCinematicDefinitionExpression(cinematicDefinitionString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.CinematicSceneDefinition:
+                case HsType.CinematicSceneDefinition:
                     if (node is ScriptSymbol cinematicSceneSymbol && cinematicSceneSymbol.Value == "none")
                         return CompileCinematicSceneDefinitionExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString cinematicSceneDefinitionString)
                         return CompileCinematicSceneDefinitionExpression(cinematicSceneDefinitionString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.BinkDefinition:
+                case HsType.BinkDefinition:
                     if (node is ScriptSymbol binkDefinitionSymbol && binkDefinitionSymbol.Value == "none")
                         return CompileBinkDefinitionExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString binkDefinitionString)
                         return CompileBinkDefinitionExpression(binkDefinitionString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.AnyTag:
+                case HsType.AnyTag:
                     if (node is ScriptSymbol anyTagSymbol && anyTagSymbol.Value == "none")
                         return CompileAnyTagExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString anyTagString)
                         return CompileAnyTagExpression(anyTagString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.AnyTagNotResolving:
+                case HsType.AnyTagNotResolving:
                     if (node is ScriptSymbol anyTagNotResolvingSymbol && anyTagNotResolvingSymbol.Value == "none")
                         return CompileAnyTagNotResolvingExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString anyTagNotResolvingString)
                         return CompileAnyTagNotResolvingExpression(anyTagNotResolvingString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.GameDifficulty:
+                case HsType.GameDifficulty:
                     if (node is ScriptSymbol gameDifficultySymbol)
                         return CompileGameDifficultyExpression(gameDifficultySymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Team:
+                case HsType.Team:
                     if (node is ScriptSymbol teamSymbol)
                         return CompileTeamExpression(teamSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.MpTeam:
+                case HsType.MpTeam:
                     if (node is ScriptSymbol mpTeamSymbol)
                         return CompileMpTeamExpression(mpTeamSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Controller:
+                case HsType.Controller:
                     if (node is ScriptSymbol controllerSymbol)
                         return CompileControllerExpression(controllerSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.ButtonPreset:
+                case HsType.ButtonPreset:
                     if (node is ScriptSymbol buttonPresetSymbol)
                         return CompileButtonPresetExpression(buttonPresetSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.JoystickPreset:
+                case HsType.JoystickPreset:
                     if (node is ScriptSymbol joystickPresetSymbol)
                         return CompileJoystickPresetExpression(joystickPresetSymbol);
                     else throw new FormatException(node.ToString());
 
-                //case HsType.HaloOnlineValue.PlayerColor:
+                //case HsType.PlayerColor:
                 //    if (node is ScriptSymbol playerColorSymbol)
                 //        return CompilePlayerColorExpression(playerColorSymbol);
                 //    else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.PlayerCharacterType:
+                case HsType.PlayerCharacterType:
                     if (node is ScriptSymbol playerCharacterTypeSymbol)
                         return CompilePlayerCharacterTypeExpression(playerCharacterTypeSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.VoiceOutputSetting:
+                case HsType.VoiceOutputSetting:
                     if (node is ScriptSymbol voiceOutputSettingSymbol)
                         return CompileVoiceOutputSettingExpression(voiceOutputSettingSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.VoiceMask:
+                case HsType.VoiceMask:
                     if (node is ScriptSymbol voiceMaskSymbol)
                         return CompileVoiceMaskExpression(voiceMaskSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.SubtitleSetting:
+                case HsType.SubtitleSetting:
                     if (node is ScriptSymbol subtitleSettingSymbol)
                         return CompileSubtitleSettingExpression(subtitleSettingSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.ActorType:
+                case HsType.ActorType:
                     if (node is ScriptSymbol actorTypeSymbol)
                         return CompileActorTypeExpression(actorTypeSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.ModelState:
+                case HsType.ModelState:
                     if (node is ScriptSymbol modelStateSymbol)
                         return CompileModelStateExpression(modelStateSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Event:
+                case HsType.Event:
                     if (node is ScriptSymbol eventSymbol)
                         return CompileEventExpression(eventSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.CharacterPhysics:
+                case HsType.CharacterPhysics:
                     if (node is ScriptSymbol characterPhysicsSymbol)
                         return CompileCharacterPhysicsExpression(characterPhysicsSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.PrimarySkull:
+                case HsType.PrimarySkull:
                     if (node is ScriptSymbol primarySkullSymbol)
                         return CompilePrimarySkullExpression(primarySkullSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.SecondarySkull:
+                case HsType.SecondarySkull:
                     if (node is ScriptSymbol secondarySkullSymbol)
                         return CompileSecondarySkullExpression(secondarySkullSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Object:
+                case HsType.Object:
                     if (node is ScriptSymbol objectSymbol && objectSymbol.Value == "none")
                         return CompileObjectExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString objectString)
                         return CompileObjectExpression(objectString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Unit:
+                case HsType.Unit:
                     if (node is ScriptSymbol unitSymbol && unitSymbol.Value == "none")
                         return CompileUnitExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString unitString)
                         return CompileUnitExpression(unitString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Vehicle:
+                case HsType.Vehicle:
                     if (node is ScriptSymbol vehicleSymbol && vehicleSymbol.Value == "none")
                         return CompileVehicleExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString vehicleString)
@@ -1041,85 +1086,85 @@ namespace TagTool.Scripting.Compiler
                         return CompileVehicleExpression(new ScriptString { Value = vehicleSymbolString.Value });
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Weapon:
+                case HsType.Weapon:
                     if (node is ScriptSymbol weaponSymbol && weaponSymbol.Value == "none")
                         return CompileWeaponExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString weaponString)
                         return CompileWeaponExpression(weaponString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Device:
+                case HsType.Device:
                     if (node is ScriptSymbol deviceSymbol && deviceSymbol.Value == "none")
                         return CompileDeviceExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString deviceString)
                         return CompileDeviceExpression(deviceString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.Scenery:
+                case HsType.Scenery:
                     if (node is ScriptSymbol scenerySymbol && scenerySymbol.Value == "none")
                         return CompileSceneryExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString sceneryString)
                         return CompileSceneryExpression(sceneryString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.EffectScenery:
+                case HsType.EffectScenery:
                     if (node is ScriptSymbol effectScenerySymbol && effectScenerySymbol.Value == "none")
                         return CompileEffectSceneryExpression(new ScriptString { Value = "none" });
                     else if (node is ScriptString effectSceneryString)
                         return CompileEffectSceneryExpression(effectSceneryString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.ObjectName:
+                case HsType.ObjectName:
                     if (node is ScriptString objectNameString)
                         return CompileObjectNameExpression(objectNameString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.UnitName:
+                case HsType.UnitName:
                     if (node is ScriptString unitNameString)
                         return CompileUnitNameExpression(unitNameString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.VehicleName:
+                case HsType.VehicleName:
                     if (node is ScriptString vehicleNameString)
                         return CompileVehicleNameExpression(vehicleNameString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.WeaponName:
+                case HsType.WeaponName:
                     if (node is ScriptString weaponNameString)
                         return CompileWeaponNameExpression(weaponNameString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.DeviceName:
+                case HsType.DeviceName:
                     if (node is ScriptString deviceNameString)
                         return CompileDeviceNameExpression(deviceNameString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.SceneryName:
+                case HsType.SceneryName:
                     if (node is ScriptString sceneryNameString)
                         return CompileSceneryNameExpression(sceneryNameString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.EffectSceneryName:
+                case HsType.EffectSceneryName:
                     if (node is ScriptString effectSceneryNameString)
                         return CompileEffectSceneryNameExpression(effectSceneryNameString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.CinematicLightprobe:
+                case HsType.CinematicLightprobe:
                     if (node is ScriptSymbol cinematicLightprobeSymbol)
                         return CompileCinematicLightprobeExpression(cinematicLightprobeSymbol);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.AnimationBudgetReference:
+                case HsType.AnimationBudgetReference:
                     if (node is ScriptString animationBudgetReferenceString)
                         return CompileAnimationBudgetReferenceExpression(animationBudgetReferenceString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.LoopingSoundBudgetReference:
+                case HsType.LoopingSoundBudgetReference:
                     if (node is ScriptString loopingSoundBudgetReferenceString)
                         return CompileLoopingSoundBudgetReferenceExpression(loopingSoundBudgetReferenceString);
                     else throw new FormatException(node.ToString());
 
-                case HsType.HaloOnlineValue.SoundBudgetReference:
+                case HsType.SoundBudgetReference:
                     if (node is ScriptString soundBudgetReferenceString)
                         return CompileSoundBudgetReferenceExpression(soundBudgetReferenceString);
                     else throw new FormatException(node.ToString());
@@ -1128,7 +1173,7 @@ namespace TagTool.Scripting.Compiler
             throw new NotImplementedException(type.ToString());
         }
 
-        private DatumHandle AllocateExpression(HsType.HaloOnlineValue valueType, HsSyntaxNodeFlags expressionType, ushort? opcode = null, short? line = null)
+        private DatumHandle AllocateExpression(HsType valueType, HsSyntaxNodeFlags expressionType, ushort? opcode = null, short? line = null)
         {
             ushort identifier = NextIdentifier;
 
@@ -1142,8 +1187,8 @@ namespace TagTool.Scripting.Compiler
             var expression = new HsSyntaxNode
             {
                 Identifier = identifier,
-                Opcode = opcode ?? (ushort)valueType,
-                ValueType = new HsType { HaloOnline = valueType },
+                Opcode = opcode ?? GetHsTypeAsInteger(valueType),
+                ValueType = valueType,
                 Flags = expressionType,
                 NextExpressionHandle = DatumHandle.None,
                 StringAddress = stringAddress,
@@ -1162,6 +1207,8 @@ namespace TagTool.Scripting.Compiler
 
             if (!Enum.TryParse(valueType.ToString(), out expression.ValueType.Halo3ODST))
                 expression.ValueType.Halo3ODST = HsType.Halo3ODSTValue.Invalid;
+            if (!Enum.TryParse(valueType.ToString(), out expression.ValueType))
+                expression.ValueType = HsType.Invalid;
 
             if (!Enum.TryParse(valueType.ToString(), out expression.ValueType.HaloReach11883))
                 expression.ValueType.HaloReach11883 = HsType.HaloReach11883Value.Invalid;
@@ -1174,7 +1221,12 @@ namespace TagTool.Scripting.Compiler
             return new DatumHandle(identifier, (ushort)ScriptExpressions.IndexOf(expression));
         }
 
-        private DatumHandle CompileGroupExpression(HsType.HaloOnlineValue type, ScriptGroup group)
+        private ushort GetHsTypeAsInteger(HsType type)
+        {
+            return (ushort)VersionedEnum.ExportValue(typeof(HsType), type, Cache.Version, Cache.Platform);
+        }
+
+        private DatumHandle CompileGroupExpression(HsType type, ScriptGroup group)
         {
             if (!(group.Head is ScriptSymbol functionNameSymbol))
                 throw new FormatException(group.Head.ToString());
@@ -1191,7 +1243,7 @@ namespace TagTool.Scripting.Compiler
                 case "begin":
                 case "begin_random":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var firstHandle = DatumHandle.None;
                         HsSyntaxNode prevExpr = null;
@@ -1200,7 +1252,7 @@ namespace TagTool.Scripting.Compiler
                             current is ScriptGroup currentGroup;
                             current = currentGroup.Tail)
                         {
-                            var currentHandle = CompileExpression(HsType.HaloOnlineValue.Unparsed, currentGroup.Head);
+                            var currentHandle = CompileExpression(HsType.Unparsed, currentGroup.Head);
 
                             if (firstHandle == DatumHandle.None)
                                 firstHandle = currentHandle;
@@ -1218,7 +1270,7 @@ namespace TagTool.Scripting.Compiler
                         var beginHandle = AllocateExpression(type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var beginExpr = ScriptExpressions[beginHandle.Index];
 
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.NextExpressionHandle = firstHandle;
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
@@ -1231,12 +1283,12 @@ namespace TagTool.Scripting.Compiler
 
                 case "if":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var ifHandle = AllocateExpression(type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var ifExpr = ScriptExpressions[ifHandle.Index];
                         // if opcode
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1246,7 +1298,7 @@ namespace TagTool.Scripting.Compiler
                         if (!(group.Tail is ScriptGroup booleanGroup))
                             throw new FormatException(group.ToString());
 
-                        var booleanHandle = CompileExpression(HsType.HaloOnlineValue.Boolean, booleanGroup.Head);
+                        var booleanHandle = CompileExpression(HsType.Boolean, booleanGroup.Head);
                         var booleanExpr = ScriptExpressions[booleanHandle.Index];
 
                         functionNameExpr.NextExpressionHandle = booleanHandle;
@@ -1257,7 +1309,7 @@ namespace TagTool.Scripting.Compiler
                         var thenHandle = CompileExpression(type, thenGroup.Head);
                         var thenExpr = ScriptExpressions[thenHandle.Index];
 
-                        if (type == HsType.HaloOnlineValue.Unparsed)
+                        if (type == HsType.Unparsed)
                             ifExpr.ValueType = thenExpr.ValueType.DeepClone();
 
                         booleanExpr.NextExpressionHandle = thenHandle;
@@ -1281,12 +1333,12 @@ namespace TagTool.Scripting.Compiler
 
                 case "cond":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var condHandle = AllocateExpression(type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var condExpr = ScriptExpressions[condHandle.Index];
 
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1311,7 +1363,7 @@ namespace TagTool.Scripting.Compiler
                             var booleanGroupHandle = AllocateExpression(type, HsSyntaxNodeFlags.Group, line: (short)condGroup.Line);
                             var booleanGroupExpr = ScriptExpressions[booleanGroupHandle.Index];
 
-                            var booleanHandle = CompileExpression(HsType.HaloOnlineValue.Boolean, condGroup.Head);
+                            var booleanHandle = CompileExpression(HsType.Boolean, condGroup.Head);
                             var booleanExpr = ScriptExpressions[booleanHandle.Index];
                             booleanExpr.NextExpressionHandle = CompileExpression(type,
                                 new ScriptGroup
@@ -1347,12 +1399,12 @@ namespace TagTool.Scripting.Compiler
                             if (global.Name != globalName.Value)
                                 continue;
 
-                            var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                            var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
-                            var setHandle = AllocateExpression(global.Type.HaloOnline, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
+                            var setHandle = AllocateExpression(global.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                             var setExpr = ScriptExpressions[setHandle.Index];
 
-                            var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                            var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                             var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                             functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1363,7 +1415,7 @@ namespace TagTool.Scripting.Compiler
                             functionNameExpr.NextExpressionHandle = globalHandle;
 
                             var globalExpr = ScriptExpressions[globalHandle.Index];
-                            globalExpr.NextExpressionHandle = CompileExpression(global.Type.HaloOnline, setValueGroup.Head);
+                            globalExpr.NextExpressionHandle = CompileExpression(global.Type, setValueGroup.Head);
 
                             return setHandle;
                         }
@@ -1374,12 +1426,12 @@ namespace TagTool.Scripting.Compiler
                 case "and":
                 case "or":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var handle = AllocateExpression(builtin.Value.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var expr = ScriptExpressions[handle.Index];
 
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1395,7 +1447,7 @@ namespace TagTool.Scripting.Compiler
                             if (!(currentGroup.Tail is ScriptGroup) && !(currentGroup.Tail is ScriptInvalid))
                                 throw new FormatException(group.ToString());
 
-                            var currentHandle = CompileExpression(HsType.HaloOnlineValue.Boolean, currentGroup.Head);
+                            var currentHandle = CompileExpression(HsType.Boolean, currentGroup.Head);
 
                             prevExpr.NextExpressionHandle = currentHandle;
                             prevExpr = ScriptExpressions[currentHandle.Index];
@@ -1412,12 +1464,12 @@ namespace TagTool.Scripting.Compiler
                 case "min":
                 case "max":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var handle = AllocateExpression(builtin.Value.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var expr = ScriptExpressions[handle.Index];
 
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1439,11 +1491,11 @@ namespace TagTool.Scripting.Compiler
                             {
                                 case ScriptInteger _:
                                 case ScriptReal _:
-                                    currentHandle = CompileExpression(HsType.HaloOnlineValue.Real, currentGroup.Head);
+                                    currentHandle = CompileExpression(HsType.Real, currentGroup.Head);
                                     break;
 
                                 default:
-                                    currentHandle = CompileExpression(HsType.HaloOnlineValue.Unparsed, currentGroup.Head);
+                                    currentHandle = CompileExpression(HsType.Unparsed, currentGroup.Head);
                                     break;
                             }
 
@@ -1461,12 +1513,12 @@ namespace TagTool.Scripting.Compiler
                 case "<=":
                 case ">=":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var handle = AllocateExpression(builtin.Value.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var expr = ScriptExpressions[handle.Index];
 
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1480,13 +1532,13 @@ namespace TagTool.Scripting.Compiler
                         {
                             case ScriptInteger _:
                             case ScriptReal _:
-                                functionNameExpr.NextExpressionHandle = (type == HsType.HaloOnlineValue.Unparsed) ?
-                                    CompileExpression(HsType.HaloOnlineValue.Real, tailGroup.Head) :
+                                functionNameExpr.NextExpressionHandle = (type == HsType.Unparsed) ?
+                                    CompileExpression(HsType.Real, tailGroup.Head) :
                                     CompileExpression(type, tailGroup.Head);
                                 break;
 
                             default:
-                                functionNameExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Unparsed, tailGroup.Head);
+                                functionNameExpr.NextExpressionHandle = CompileExpression(HsType.Unparsed, tailGroup.Head);
                                 break;
                         }
 
@@ -1496,20 +1548,20 @@ namespace TagTool.Scripting.Compiler
                             throw new FormatException(group.ToString());
 
                         firstExpr.NextExpressionHandle = (tailTailGroup.Head is ScriptGroup) ?
-                            CompileExpression(HsType.HaloOnlineValue.Unparsed, tailTailGroup.Head) :
-                            CompileExpression(firstExpr.ValueType.HaloOnline, tailTailGroup.Head);
+                            CompileExpression(HsType.Unparsed, tailTailGroup.Head) :
+                            CompileExpression(firstExpr.ValueType, tailTailGroup.Head);
 
                         return handle;
                     }
 
                 case "sleep":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var handle = AllocateExpression(builtin.Value.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var expr = ScriptExpressions[handle.Index];
 
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1522,11 +1574,11 @@ namespace TagTool.Scripting.Compiler
                         switch (tailGroup.Head)
                         {
                             case ScriptInteger _:
-                                functionNameExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Short, tailGroup.Head);
+                                functionNameExpr.NextExpressionHandle = CompileExpression(HsType.Short, tailGroup.Head);
                                 break;
 
                             default:
-                                functionNameExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Unparsed, tailGroup.Head);
+                                functionNameExpr.NextExpressionHandle = CompileExpression(HsType.Unparsed, tailGroup.Head);
                                 break;
                         }
 
@@ -1538,19 +1590,19 @@ namespace TagTool.Scripting.Compiler
                         if (!(tailGroup.Tail is ScriptGroup tailTailGroup) || !(tailTailGroup.Tail is ScriptInvalid))
                             throw new FormatException(group.ToString());
 
-                        lengthExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Script, tailTailGroup.Head);
+                        lengthExpr.NextExpressionHandle = CompileExpression(HsType.Script, tailTailGroup.Head);
 
                         return handle;
                     }
 
                 case "sleep_forever":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var handle = AllocateExpression(builtin.Value.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var expr = ScriptExpressions[handle.Index];
 
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1563,19 +1615,19 @@ namespace TagTool.Scripting.Compiler
                         if (!(group.Tail is ScriptGroup tailGroup) || !(tailGroup.Tail is ScriptInvalid))
                             throw new FormatException(group.ToString());
 
-                        functionNameExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Script, tailGroup.Head);
+                        functionNameExpr.NextExpressionHandle = CompileExpression(HsType.Script, tailGroup.Head);
 
                         return handle;
                     }
 
                 case "sleep_until":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var handle = AllocateExpression(builtin.Value.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var expr = ScriptExpressions[handle.Index];
 
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1585,12 +1637,12 @@ namespace TagTool.Scripting.Compiler
                         if (!(group.Tail is ScriptGroup tailGroup))
                             throw new FormatException(group.ToString());
 
-                        functionNameExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Boolean, tailGroup.Head);
+                        functionNameExpr.NextExpressionHandle = CompileExpression(HsType.Boolean, tailGroup.Head);
 
                         if (tailGroup.Tail is ScriptGroup tailTailGroup)
                         {
                             var booleanExpr = ScriptExpressions[functionNameExpr.NextExpressionHandle.Index];
-                            booleanExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Short, tailTailGroup.Head);
+                            booleanExpr.NextExpressionHandle = CompileExpression(HsType.Short, tailTailGroup.Head);
 
                             if (tailTailGroup.Tail is ScriptGroup tailTailTailGroup)
                             {
@@ -1598,7 +1650,7 @@ namespace TagTool.Scripting.Compiler
                                     throw new FormatException(group.ToString());
 
                                 var tickExpr = ScriptExpressions[booleanExpr.NextExpressionHandle.Index];
-                                tickExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Short, tailTailTailGroup.Head);
+                                tickExpr.NextExpressionHandle = CompileExpression(HsType.Short, tailTailTailGroup.Head);
                             }
                             else if (!(tailTailGroup.Tail is ScriptInvalid))
                             {
@@ -1615,12 +1667,12 @@ namespace TagTool.Scripting.Compiler
 
                 case "wake":
                     {
-                        var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == functionNameSymbol.Value);
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
 
                         var handle = AllocateExpression(builtin.Value.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
                         var expr = ScriptExpressions[handle.Index];
 
-                        var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
                         var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                         functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1630,7 +1682,51 @@ namespace TagTool.Scripting.Compiler
                         if (!(group.Tail is ScriptGroup tailGroup) || !(tailGroup.Tail is ScriptInvalid))
                             throw new FormatException(group.ToString());
 
-                        functionNameExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Script, tailGroup.Head);
+                        functionNameExpr.NextExpressionHandle = CompileExpression(HsType.Script, tailGroup.Head);
+
+                        return handle;
+                    }
+
+                case "inspect":
+                    {
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
+
+                        var handle = AllocateExpression(builtin.Value.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
+                        var expr = ScriptExpressions[handle.Index];
+
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
+                        functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
+
+                        Array.Copy(BitConverter.GetBytes(functionNameHandle.Value), expr.Data, 4);
+                        Array.Copy(BitConverter.GetBytes(0), functionNameExpr.Data, 4);
+
+                        if (!(group.Tail is ScriptGroup tailGroup))
+                            throw new FormatException(group.ToString());
+
+                        functionNameExpr.NextExpressionHandle = CompileExpression(HsType.Unparsed, tailGroup.Head);
+
+                        return handle;
+                    }
+
+                case "unit":
+                    {
+                        var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == functionNameSymbol.Value);
+
+                        var handle = AllocateExpression(builtin.Value.Type, HsSyntaxNodeFlags.Group, (ushort)builtin.Key, (short)group.Line);
+                        var expr = ScriptExpressions[handle.Index];
+
+                        var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, (ushort)builtin.Key, (short)functionNameSymbol.Line);
+                        var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
+                        functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
+
+                        Array.Copy(BitConverter.GetBytes(functionNameHandle.Value), expr.Data, 4);
+                        Array.Copy(BitConverter.GetBytes(0), functionNameExpr.Data, 4);
+
+                        if (!(group.Tail is ScriptGroup tailGroup))
+                            throw new FormatException(group.ToString());
+
+                        functionNameExpr.NextExpressionHandle = CompileExpression(HsType.Object, tailGroup.Head);
 
                         return handle;
                     }
@@ -1640,7 +1736,7 @@ namespace TagTool.Scripting.Compiler
             // Check if function name is a built-in function
             //
 
-            foreach (var entry in ScriptInfo.Scripts[(Cache.Version, Cache.Platform)])
+            foreach (var entry in Cache.ScriptDefinitions.Scripts)
             {
                 if (functionNameSymbol.Value != entry.Value.Name)
                     continue;
@@ -1648,7 +1744,7 @@ namespace TagTool.Scripting.Compiler
                 var handle = AllocateExpression(entry.Value.Type, HsSyntaxNodeFlags.Group, (ushort)entry.Key, (short)functionNameSymbol.Line);
                 var expr = ScriptExpressions[handle.Index];
 
-                var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Expression, (ushort)entry.Key, (short)functionNameSymbol.Line);
+                var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Expression, (ushort)entry.Key, (short)functionNameSymbol.Line);
                 var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
                 functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1685,7 +1781,7 @@ namespace TagTool.Scripting.Compiler
                     return CompileExternMethodReference(group, functionNameSymbol, script);
 
                 var handle = AllocateExpression(
-                    script.ReturnType.HaloOnline,
+                    script.ReturnType,
                     HsSyntaxNodeFlags.ScriptReference,
                     (ushort)Scripts.IndexOf(script),
                     (short)functionNameSymbol.Line);
@@ -1693,7 +1789,7 @@ namespace TagTool.Scripting.Compiler
                 var expr = ScriptExpressions[handle.Index];
 
                 var functionNameHandle = AllocateExpression(
-                    HsType.HaloOnlineValue.FunctionName,
+                    HsType.FunctionName,
                     HsSyntaxNodeFlags.Expression,
                     (ushort)Scripts.IndexOf(script),
                     (short)functionNameSymbol.Line);
@@ -1712,7 +1808,7 @@ namespace TagTool.Scripting.Compiler
                     if (!(parameters is ScriptGroup parametersGroup))
                         throw new FormatException(group.ToString());
 
-                    prevExpr.NextExpressionHandle = CompileExpression(parameter.Type.HaloOnline, parametersGroup.Head);
+                    prevExpr.NextExpressionHandle = CompileExpression(parameter.Type, parametersGroup.Head);
                     prevExpr = ScriptExpressions[prevExpr.NextExpressionHandle.Index];
 
                     parameters = parametersGroup.Tail;
@@ -1726,13 +1822,13 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileExternMethodReference(ScriptGroup group, ScriptSymbol functionNameSymbol, HsScript script)
         {
-            var builtin = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].First(x => x.Value.Name == "dew_method_stub");
+            var builtin = Cache.ScriptDefinitions.Scripts.First(x => x.Value.Name == "dew_method_stub");
             var scriptIndex = (short)Scripts.IndexOf(script);
 
-            var handle = AllocateExpression(script.ReturnType.HaloOnline, HsSyntaxNodeFlags.Group |  HsSyntaxNodeFlags.Extern, (ushort)builtin.Key, scriptIndex);
+            var handle = AllocateExpression(script.ReturnType, HsSyntaxNodeFlags.Group |  HsSyntaxNodeFlags.Extern, (ushort)builtin.Key, scriptIndex);
             var expr = ScriptExpressions[handle.Index];
 
-            var functionNameHandle = AllocateExpression(HsType.HaloOnlineValue.FunctionName, HsSyntaxNodeFlags.Expression | HsSyntaxNodeFlags.Extern, (ushort)builtin.Key, scriptIndex);
+            var functionNameHandle = AllocateExpression(HsType.FunctionName, HsSyntaxNodeFlags.Expression | HsSyntaxNodeFlags.Extern, (ushort)builtin.Key, scriptIndex);
             var functionNameExpr = ScriptExpressions[functionNameHandle.Index];
             functionNameExpr.StringAddress = CompileStringAddress(functionNameSymbol.Value);
 
@@ -1747,7 +1843,7 @@ namespace TagTool.Scripting.Compiler
                 if (!(parameters is ScriptGroup parametersGroup))
                     throw new FormatException(group.ToString());
 
-                prevExpr.NextExpressionHandle = CompileExpression(parameter.Type.HaloOnline, parametersGroup.Head);
+                prevExpr.NextExpressionHandle = CompileExpression(parameter.Type, parametersGroup.Head);
                 prevExpr = ScriptExpressions[prevExpr.NextExpressionHandle.Index];
 
                 parameters = parametersGroup.Tail;
@@ -1758,7 +1854,7 @@ namespace TagTool.Scripting.Compiler
                 current is ScriptGroup currentGroup;
                 current = currentGroup.Tail)
             {
-                prevExpr.NextExpressionHandle = CompileExpression(HsType.HaloOnlineValue.Unparsed, currentGroup.Head);
+                prevExpr.NextExpressionHandle = CompileExpression(HsType.Unparsed, currentGroup.Head);
                 prevExpr = ScriptExpressions[prevExpr.NextExpressionHandle.Index];
             }
 
@@ -1767,7 +1863,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileGlobalReference(ScriptSymbol symbol, HsGlobal global)
         {
-            var handle = AllocateExpression(global.Type.HaloOnline, HsSyntaxNodeFlags.GlobalsReference, line: (short)symbol.Line);
+            var handle = AllocateExpression(global.Type, HsSyntaxNodeFlags.GlobalsReference, line: (short)symbol.Line);
 
             var expr = ScriptExpressions[handle.Index];
             expr.StringAddress = CompileStringAddress(global.Name);
@@ -1776,7 +1872,7 @@ namespace TagTool.Scripting.Compiler
             return handle;
         }
 
-        private DatumHandle CompileGlobalReference(ScriptSymbol symbol, HsType.HaloOnlineValue type, string name, ushort opcode)
+        private DatumHandle CompileGlobalReference(ScriptSymbol symbol, HsType type, string name, ushort opcode)
         {
             var handle = AllocateExpression(type, HsSyntaxNodeFlags.GlobalsReference, line: (short)symbol.Line);
 
@@ -1789,7 +1885,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileParameterReference(ScriptSymbol symbol, HsScriptParameter parameter)
         {
-            var handle = AllocateExpression(parameter.Type.HaloOnline, HsSyntaxNodeFlags.ParameterReference, line: (short)symbol.Line);
+            var handle = AllocateExpression(parameter.Type, HsSyntaxNodeFlags.ParameterReference, line: (short)symbol.Line);
 
             var expr = ScriptExpressions[handle.Index];
             expr.StringAddress = CompileStringAddress(parameter.Name);
@@ -1800,7 +1896,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileBooleanExpression(ScriptBoolean boolValue)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Boolean, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)boolValue.Line);
+            var handle = AllocateExpression(HsType.Boolean, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)boolValue.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -1814,7 +1910,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileRealExpression(ScriptReal realValue)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Real, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)realValue.Line);
+            var handle = AllocateExpression(HsType.Real, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)realValue.Line);
 
             if (handle != DatumHandle.None)
                 Array.Copy(BitConverter.GetBytes((float)realValue.Value), ScriptExpressions[handle.Index].Data, 4);
@@ -1824,7 +1920,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileShortExpression(ScriptInteger shortValue)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Short, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)shortValue.Line);
+            var handle = AllocateExpression(HsType.Short, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)shortValue.Line);
 
             if (handle != DatumHandle.None)
                 Array.Copy(BitConverter.GetBytes((short)shortValue.Value), ScriptExpressions[handle.Index].Data, 2);
@@ -1834,7 +1930,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileLongExpression(ScriptInteger longValue)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Long, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)longValue.Line);
+            var handle = AllocateExpression(HsType.Long, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)longValue.Line);
 
             if (handle != DatumHandle.None)
                 Array.Copy(BitConverter.GetBytes((int)longValue.Value), ScriptExpressions[handle.Index].Data, 4);
@@ -1844,7 +1940,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileStringExpression(ScriptString stringValue)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.String, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)stringValue.Line);
+            var handle = AllocateExpression(HsType.String, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)stringValue.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -1858,7 +1954,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileScriptExpression(ScriptSymbol scriptSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Script, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)scriptSymbol.Line);
+            var handle = AllocateExpression(HsType.Script, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)scriptSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -1877,7 +1973,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileStringIdExpression(ScriptString stringIdString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.StringId, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)stringIdString.Line);
+            var handle = AllocateExpression(HsType.StringId, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)stringIdString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -1893,7 +1989,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileUnitSeatMappingExpression(ScriptString unitSeatMappingString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.UnitSeatMapping, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)unitSeatMappingString.Line);
+            var handle = AllocateExpression(HsType.UnitSeatMapping, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)unitSeatMappingString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -1903,7 +1999,7 @@ namespace TagTool.Scripting.Compiler
                 // TODO: Compile unit_seat_mapping data here
                 //
 
-                throw new NotImplementedException(HsType.HaloOnlineValue.UnitSeatMapping.ToString());
+                throw new NotImplementedException(HsType.UnitSeatMapping.ToString());
             }
 
             return handle;
@@ -1911,7 +2007,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileTriggerVolumeExpression(ScriptString triggerVolumeString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.TriggerVolume, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)triggerVolumeString.Line);
+            var handle = AllocateExpression(HsType.TriggerVolume, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)triggerVolumeString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -1930,7 +2026,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileCutsceneFlagExpression(ScriptString cutsceneFlagString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.CutsceneFlag, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cutsceneFlagString.Line);
+            var handle = AllocateExpression(HsType.CutsceneFlag, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cutsceneFlagString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -1949,7 +2045,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileCutsceneCameraPointExpression(ScriptString cutsceneCameraPointString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.CutsceneCameraPoint, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cutsceneCameraPointString.Line);
+            var handle = AllocateExpression(HsType.CutsceneCameraPoint, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cutsceneCameraPointString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -1968,7 +2064,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileCutsceneTitleExpression(ScriptSymbol cutsceneTitleSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.CutsceneTitle, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cutsceneTitleSymbol.Line);
+            var handle = AllocateExpression(HsType.CutsceneTitle, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cutsceneTitleSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -1990,7 +2086,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileDeviceGroupExpression(ScriptString deviceGroupString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.DeviceGroup, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)deviceGroupString.Line);
+            var handle = AllocateExpression(HsType.DeviceGroup, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)deviceGroupString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2009,7 +2105,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileAiExpression(ScriptString aiString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Ai, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)aiString.Line);
+            var handle = AllocateExpression(HsType.Ai, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)aiString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2147,7 +2243,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileAiLineExpression(ScriptString aiLineString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.AiLine, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)aiLineString.Line);
+            var handle = AllocateExpression(HsType.AiLine, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)aiLineString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2163,7 +2259,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileStartingProfileExpression(ScriptString startingProfileString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.StartingProfile, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)startingProfileString.Line);
+            var handle = AllocateExpression(HsType.StartingProfile, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)startingProfileString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2174,7 +2270,7 @@ namespace TagTool.Scripting.Compiler
 
                 var expr = ScriptExpressions[handle.Index];
                 expr.StringAddress = CompileStringAddress(startingProfileString.Value);
-                Array.Copy(BitConverter.GetBytes((short)startingProfileIndex), expr.Data, 2);
+                expr.Data = new byte[] { (byte)((startingProfileIndex & 0xFF)), (byte)(startingProfileIndex >> 8), 0xFF, 0xFF };
             }
 
             return handle;
@@ -2185,7 +2281,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileZoneSetExpression(ScriptString zoneSetString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.ZoneSet, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)zoneSetString.Line);
+            var handle = AllocateExpression(HsType.ZoneSet, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)zoneSetString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2204,7 +2300,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileDesignerZoneExpression(ScriptString designerZoneString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.ZoneSet, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)designerZoneString.Line);
+            var handle = AllocateExpression(HsType.ZoneSet, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)designerZoneString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2223,7 +2319,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompilePointReferenceExpression(ScriptString pointReferenceString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.PointReference, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)pointReferenceString.Line);
+            var handle = AllocateExpression(HsType.PointReference, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)pointReferenceString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2255,8 +2351,8 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileObjectListExpression(ScriptString objectListString)
         {
-            ushort? objectOpcode = objectListString.Value == "none" ? null : (ushort?)HsType.HaloOnlineValue.ObjectName;
-            var handle = AllocateExpression(HsType.HaloOnlineValue.ObjectList, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, objectOpcode, line: (short)objectListString.Line);
+            ushort? objectOpcode = objectListString.Value == "none" ? null : GetHsTypeAsInteger(HsType.ObjectName);
+            var handle = AllocateExpression(HsType.ObjectList, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, objectOpcode, line: (short)objectListString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2276,7 +2372,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileFolderExpression(ScriptString folderString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Folder, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)folderString.Line);
+            var handle = AllocateExpression(HsType.Folder, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)folderString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2295,7 +2391,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileSoundExpression(ScriptString soundString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Sound, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)soundString.Line);
+            var handle = AllocateExpression(HsType.Sound, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)soundString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2314,7 +2410,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileEffectExpression(ScriptString effectString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Effect, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)effectString.Line);
+            var handle = AllocateExpression(HsType.Effect, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)effectString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2333,7 +2429,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileDamageExpression(ScriptString damageString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Damage, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)damageString.Line);
+            var handle = AllocateExpression(HsType.Damage, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)damageString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2352,7 +2448,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileLoopingSoundExpression(ScriptString loopingSoundString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.LoopingSound, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)loopingSoundString.Line);
+            var handle = AllocateExpression(HsType.LoopingSound, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)loopingSoundString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2371,7 +2467,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileAnimationGraphExpression(ScriptString animationGraphString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.AnimationGraph, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)animationGraphString.Line);
+            var handle = AllocateExpression(HsType.AnimationGraph, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)animationGraphString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2390,7 +2486,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileDamageEffectExpression(ScriptString damageEffectString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.DamageEffect, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)damageEffectString.Line);
+            var handle = AllocateExpression(HsType.DamageEffect, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)damageEffectString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2409,7 +2505,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileObjectDefinitionExpression(ScriptString objectDefinitionString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.ObjectDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectDefinitionString.Line);
+            var handle = AllocateExpression(HsType.ObjectDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectDefinitionString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2428,7 +2524,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileBitmapExpression(ScriptString bitmapString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Bitmap, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)bitmapString.Line);
+            var handle = AllocateExpression(HsType.Bitmap, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)bitmapString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2447,7 +2543,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileShaderExpression(ScriptString shaderString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Shader, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)shaderString.Line);
+            var handle = AllocateExpression(HsType.Shader, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)shaderString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2466,7 +2562,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileRenderModelExpression(ScriptString renderModelString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.RenderModel, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)renderModelString.Line);
+            var handle = AllocateExpression(HsType.RenderModel, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)renderModelString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2485,7 +2581,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileStructureDefinitionExpression(ScriptString structureDefinitionString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.StructureDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)structureDefinitionString.Line);
+            var handle = AllocateExpression(HsType.StructureDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)structureDefinitionString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2507,7 +2603,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileCinematicDefinitionExpression(ScriptString cinematicDefinitionString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.CinematicDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cinematicDefinitionString.Line);
+            var handle = AllocateExpression(HsType.CinematicDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cinematicDefinitionString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2526,7 +2622,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileCinematicSceneDefinitionExpression(ScriptString cinematicSceneDefinitionString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.CinematicSceneDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cinematicSceneDefinitionString.Line);
+            var handle = AllocateExpression(HsType.CinematicSceneDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cinematicSceneDefinitionString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2545,7 +2641,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileBinkDefinitionExpression(ScriptString binkDefinitionString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.BinkDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)binkDefinitionString.Line);
+            var handle = AllocateExpression(HsType.BinkDefinition, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)binkDefinitionString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2564,7 +2660,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileAnyTagExpression(ScriptString anyTagString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.AnyTag, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)anyTagString.Line);
+            var handle = AllocateExpression(HsType.AnyTag, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)anyTagString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2583,7 +2679,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileAnyTagNotResolvingExpression(ScriptString anyTagNotResolvingString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.AnyTagNotResolving, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)anyTagNotResolvingString.Line);
+            var handle = AllocateExpression(HsType.AnyTagNotResolving, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)anyTagNotResolvingString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2602,7 +2698,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileGameDifficultyExpression(ScriptSymbol gameDifficultySymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.GameDifficulty, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)gameDifficultySymbol.Line);
+            var handle = AllocateExpression(HsType.GameDifficulty, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)gameDifficultySymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2619,7 +2715,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileTeamExpression(ScriptSymbol teamSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Team, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)teamSymbol.Line);
+            var handle = AllocateExpression(HsType.Team, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)teamSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2636,7 +2732,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileMpTeamExpression(ScriptSymbol mpTeamSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.MpTeam, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)mpTeamSymbol.Line);
+            var handle = AllocateExpression(HsType.MpTeam, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)mpTeamSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2653,7 +2749,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileControllerExpression(ScriptSymbol controllerSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Controller, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)controllerSymbol.Line);
+            var handle = AllocateExpression(HsType.Controller, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)controllerSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2670,7 +2766,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileButtonPresetExpression(ScriptSymbol buttonPresetSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.ButtonPreset, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)buttonPresetSymbol.Line);
+            var handle = AllocateExpression(HsType.ButtonPreset, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)buttonPresetSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2687,7 +2783,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileJoystickPresetExpression(ScriptSymbol joystickPresetSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.JoystickPreset, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)joystickPresetSymbol.Line);
+            var handle = AllocateExpression(HsType.JoystickPreset, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)joystickPresetSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2707,7 +2803,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompilePlayerCharacterTypeExpression(ScriptSymbol playerCharacterTypeSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.PlayerCharacterType, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)playerCharacterTypeSymbol.Line);
+            var handle = AllocateExpression(HsType.PlayerCharacterType, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)playerCharacterTypeSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2724,7 +2820,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileVoiceOutputSettingExpression(ScriptSymbol voiceOutputSettingSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.VoiceOutputSetting, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)voiceOutputSettingSymbol.Line);
+            var handle = AllocateExpression(HsType.VoiceOutputSetting, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)voiceOutputSettingSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2741,7 +2837,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileVoiceMaskExpression(ScriptSymbol voiceMaskSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.VoiceMask, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)voiceMaskSymbol.Line);
+            var handle = AllocateExpression(HsType.VoiceMask, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)voiceMaskSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2758,7 +2854,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileSubtitleSettingExpression(ScriptSymbol subtitleSettingSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.SubtitleSetting, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)subtitleSettingSymbol.Line);
+            var handle = AllocateExpression(HsType.SubtitleSetting, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)subtitleSettingSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2775,7 +2871,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileActorTypeExpression(ScriptSymbol actorTypeSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.ActorType, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)actorTypeSymbol.Line);
+            var handle = AllocateExpression(HsType.ActorType, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)actorTypeSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2792,7 +2888,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileModelStateExpression(ScriptSymbol modelStateSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.ModelState, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)modelStateSymbol.Line);
+            var handle = AllocateExpression(HsType.ModelState, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)modelStateSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2809,7 +2905,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileEventExpression(ScriptSymbol eventSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Event, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)eventSymbol.Line);
+            var handle = AllocateExpression(HsType.Event, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)eventSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2826,7 +2922,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileCharacterPhysicsExpression(ScriptSymbol characterPhysicsSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.CharacterPhysics, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)characterPhysicsSymbol.Line);
+            var handle = AllocateExpression(HsType.CharacterPhysics, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)characterPhysicsSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2843,7 +2939,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompilePrimarySkullExpression(ScriptSymbol primarySkullSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.PrimarySkull, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)primarySkullSymbol.Line);
+            var handle = AllocateExpression(HsType.PrimarySkull, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)primarySkullSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2860,7 +2956,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileSecondarySkullExpression(ScriptSymbol secondarySkullSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.SecondarySkull, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)secondarySkullSymbol.Line);
+            var handle = AllocateExpression(HsType.SecondarySkull, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)secondarySkullSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2877,8 +2973,8 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileObjectExpression(ScriptString objectString)
         {
-            ushort? objectOpcode = objectString.Value == "none" ? null : (ushort?)HsType.HaloOnlineValue.ObjectName;
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Object, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, objectOpcode, line: (short)objectString.Line);
+            ushort? objectOpcode = objectString.Value == "none" ? null : GetHsTypeAsInteger(HsType.ObjectName);
+            var handle = AllocateExpression(HsType.Object, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, objectOpcode, line: (short)objectString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2898,8 +2994,8 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileUnitExpression(ScriptString unitString)
         {
-            ushort? unitOpcode = unitString.Value == "none" ? null : (ushort?)HsType.HaloOnlineValue.UnitName;
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Unit, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, unitOpcode, line: (short)unitString.Line);
+            ushort? unitOpcode = unitString.Value == "none" ? null : GetHsTypeAsInteger(HsType.UnitName);
+            var handle = AllocateExpression(HsType.Unit, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, unitOpcode, line: (short)unitString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2919,8 +3015,8 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileVehicleExpression(ScriptString vehicleString)
         {
-            ushort? vehicleOpcode = vehicleString.Value == "none" ? null : (ushort?)HsType.HaloOnlineValue.VehicleName;
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Vehicle, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, vehicleOpcode, line: (short)vehicleString.Line);
+            ushort? vehicleOpcode = vehicleString.Value == "none" ? null : GetHsTypeAsInteger(HsType.VehicleName);
+            var handle = AllocateExpression(HsType.Vehicle, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, vehicleOpcode, line: (short)vehicleString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2941,7 +3037,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileWeaponExpression(ScriptString weaponString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Weapon, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)weaponString.Line);
+            var handle = AllocateExpression(HsType.Weapon, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)weaponString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2961,8 +3057,8 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileDeviceExpression(ScriptString deviceString)
         {
-            ushort? deviceOpcode = deviceString.Value == "none" ? null : (ushort?)HsType.HaloOnlineValue.DeviceName;
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Device, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, deviceOpcode, line: (short)deviceString.Line);
+            ushort? deviceOpcode = deviceString.Value == "none" ? null : GetHsTypeAsInteger(HsType.DeviceName);
+            var handle = AllocateExpression(HsType.Device, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, deviceOpcode, line: (short)deviceString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -2982,8 +3078,8 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileSceneryExpression(ScriptString sceneryString)
         {
-            ushort? sceneryOpcode = sceneryString.Value == "none" ? null : (ushort?)HsType.HaloOnlineValue.SceneryName;
-            var handle = AllocateExpression(HsType.HaloOnlineValue.Scenery, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, sceneryOpcode, line: (short)sceneryString.Line);
+            ushort? sceneryOpcode = sceneryString.Value == "none" ? null : GetHsTypeAsInteger(HsType.SceneryName);
+            var handle = AllocateExpression(HsType.Scenery, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, sceneryOpcode, line: (short)sceneryString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3003,7 +3099,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileEffectSceneryExpression(ScriptString effectSceneryString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.EffectScenery, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)effectSceneryString.Line);
+            var handle = AllocateExpression(HsType.EffectScenery, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)effectSceneryString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3023,7 +3119,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileObjectNameExpression(ScriptString objectNameString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.ObjectName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
+            var handle = AllocateExpression(HsType.ObjectName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3042,7 +3138,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileUnitNameExpression(ScriptString objectNameString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.UnitName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
+            var handle = AllocateExpression(HsType.UnitName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3068,7 +3164,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileVehicleNameExpression(ScriptString objectNameString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.VehicleName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
+            var handle = AllocateExpression(HsType.VehicleName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3090,7 +3186,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileWeaponNameExpression(ScriptString objectNameString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.WeaponName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
+            var handle = AllocateExpression(HsType.WeaponName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3112,7 +3208,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileDeviceNameExpression(ScriptString objectNameString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.DeviceName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
+            var handle = AllocateExpression(HsType.DeviceName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3138,7 +3234,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileSceneryNameExpression(ScriptString objectNameString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.SceneryName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
+            var handle = AllocateExpression(HsType.SceneryName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3160,7 +3256,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileEffectSceneryNameExpression(ScriptString objectNameString)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.EffectSceneryName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
+            var handle = AllocateExpression(HsType.EffectSceneryName, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)objectNameString.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3182,7 +3278,7 @@ namespace TagTool.Scripting.Compiler
 
         private DatumHandle CompileCinematicLightprobeExpression(ScriptSymbol cinematicLightprobeSymbol)
         {
-            var handle = AllocateExpression(HsType.HaloOnlineValue.CinematicLightprobe, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cinematicLightprobeSymbol.Line);
+            var handle = AllocateExpression(HsType.CinematicLightprobe, HsSyntaxNodeFlags.Primitive | HsSyntaxNodeFlags.DoNotGC, line: (short)cinematicLightprobeSymbol.Line);
 
             if (handle != DatumHandle.None)
             {
@@ -3193,7 +3289,7 @@ namespace TagTool.Scripting.Compiler
 
                 var expr = ScriptExpressions[handle.Index];
                 expr.StringAddress = CompileStringAddress(cinematicLightprobeSymbol.Value);
-                Array.Copy(BitConverter.GetBytes((short)cinematicLightprobeIndex), expr.Data, 2);
+                Array.Copy(BitConverter.GetBytes(cinematicLightprobeIndex), expr.Data, 4);
             }
 
             return handle;

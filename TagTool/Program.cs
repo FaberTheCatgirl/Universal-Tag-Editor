@@ -1,43 +1,41 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using TagTool.Cache;
 using TagTool.Commands.Common;
 using TagTool.Commands.Tags;
 using TagTool.Common;
+using TagTool.Common.Logging;
 using TagTool.IO;
+using TagTool.Scripting.CSharp;
 
 namespace TagTool.Commands
 {
     public static class Program
     {
-        public static string TagToolDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-        public static readonly Stopwatch _stopWatch = new Stopwatch();
-        public static int ErrorCount = 0;
-        public static int WarningCount = 0;
+        const string AutoExecFileName = "autoexec.cmds";
 
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
-            SetDirectories();
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.GetCultureInfo("en-US");
+
+            AssemblyResolver.ConfigureAssemblyResolution();
+
+            // Setup logging and output
+            Log.AddHandler(new ConsoleLogHandler());
+            Log.AddHandler(new RunMetricsLogHandler());
+            Log.Level = LogLevel.Info; // TODO: set via command line
+
+            AnsiConsole.Initialize();
             ConsoleHistory.Initialize();
 
-            // If there are extra arguments, use them to automatically execute a command
-            List<string> autoexecCommand = null;
-            if (args.Length > 1)
-                autoexecCommand = args.Skip(1).ToList();
-
-            if (autoexecCommand == null)
-            {
-                Console.WriteLine($"Universal Tag Editor - A TagTool fork created by FaberTheCatgirl. [{Assembly.GetExecutingAssembly().GetName().Version}]");
-                Console.WriteLine();
+            var assembly = Assembly.GetExecutingAssembly();
+            Console.WriteLine($"Universal Tag Editor - A TagTool fork created by FaberTheCatgirl. [{assembly.GetName().Version} (Built {FileTimeUtil.GetLinkerTimestampUtc(assembly)} UTC)]");
+            Console.WriteLine();
                 Console.WriteLine("Please report any bugs and/or feature requests:");
                 Console.WriteLine("https://github.com/FaberTheCatgirl/Universal-Tag-Editor/issues");
-            }
 
             start:
             // Get the file path from the first argument
@@ -113,47 +111,86 @@ namespace TagTool.Commands
             GameCache gameCache = null;
 
 #if !DEBUG
+            AssemblyResolver.CheckMissingDependencies();
+
             try
             {
-#endif
-                gameCache = GameCache.Open(fileInfo);
-#if !DEBUG
+                return MainCore(args);
             }
-            catch (Exception e)
+            catch (Exception ex) when (!Debugger.IsAttached)
             {
-                new TagToolError(CommandError.CustomError, e.Message);
-                Console.WriteLine("\nSTACKTRACE: " + Environment.NewLine + e.StackTrace);
-                ConsoleHistory.Dump("hott_*_init.log");
-                return;
+                Log.Error(ex);
+                ConsoleHistory.Dump("hott_*_crash.log");
+                return -1;
             }
-#endif
+        }
 
-            // Create command context
+        static int MainCore(string[] args)
+        {
             var contextStack = new CommandContextStack();
-            var tagsContext = TagCacheContextFactory.Create(contextStack, gameCache);
+
+            // if the first argument is a c# script, execute it and exit
+            if (args.Length > 0 && args[0].Trim('\"').EndsWith(".cs"))
+                return ExecuteCSharpScript(args, contextStack);
+
+            // If there are extra arguments, use them to automatically execute a command
+            string autoexecCommand = null;
+            if (args.Length > 1)
+                autoexecCommand = string.Join(' ', args[1..]);
+
+            string[] autoExecLines = ReadAutoExecFile();
+            string cacheFilePath = args.Length > 0 ? ResolveCacheFilePath(args[0]) : "tags.dat";
+
+            // If there are no args, try using the first line of the autoexec file
+            if (args.Length == 0 && autoExecLines.Length > 0)
+            {
+                string defaultCacheFilePath = ResolveCacheFilePath(autoExecLines[0]);
+                if (File.Exists(defaultCacheFilePath))
+                {
+                    cacheFilePath = defaultCacheFilePath;
+                    autoExecLines[0] = $"// {autoExecLines[0]}"; // comment it out to preserve line numbers
+                }
+            }
+            else
+            {
+                autoExecLines = [];
+            }
+
+            var cacheFileInfo = new FileInfo(cacheFilePath);
+
+            if (args.Length > 0 && !cacheFileInfo.Exists)
+                Log.Error("Invalid path to a tag cache!");
+
+            if (!cacheFileInfo.Exists)
+                cacheFileInfo = PromptCacheFile();
+
+            GameCache gameCache = OpenCacheFile(cacheFileInfo);
+            if (gameCache == null)
+                return -1;
+
+            CommandContext tagsContext = TagCacheContextFactory.Create(contextStack, gameCache);
             contextStack.Push(tagsContext);
 
             var commandRunner = new CommandRunner(contextStack);
 
-            // If autoexecuting a command, just run it and return
+            if (!RunAutoExecFile(commandRunner, autoExecLines))
+                return -1;
+
             if (autoexecCommand != null)
             {
-                commandRunner.RunCommand(string.Join(" ", autoexecCommand), false);
-                goto end;
+                if (!RunAutoExec(commandRunner, args, autoexecCommand))
+                    return -1;
             }
-
-            
-            if(autoExecFile.Exists)
+            else
             {
-                var autoExecLines = File.ReadAllLines(autoExecFile.FullName);
-
-                // if cache path provided at the start of autoexec.cmds, ignore it when executing
-                autoExecLines = defaultCacheIsSet ? autoExecLines.Skip(1).ToArray() : autoExecLines;
-
-                foreach (var line in autoExecLines)
-                    commandRunner.RunCommand(line);
+                RunCommandLoop(commandRunner, contextStack);
             }
 
+            return 0;
+        }
+
+        private static void RunCommandLoop(CommandRunner commandRunner, CommandContextStack contextStack)
+        {
             Console.WriteLine("\nEnter \"help\" to list available commands. Enter \"quit\" to quit.");
             while (!commandRunner.EOF)
             {
@@ -162,55 +199,138 @@ namespace TagTool.Commands
                 Console.Write("{0}> ", contextStack.GetPath());
                 Console.Title = $"Universal Tag Editor {contextStack.GetPath()}>";
 
-                var line = Console.ReadLine();
-                if (line == "restart")
-                    goto start;
-                commandRunner.RunCommand(line, false);
+                object result = commandRunner.RunCommand(Console.ReadLine(), printInput: false);
+                if (result is TagToolError error)
+                    Log.Error(error.Message);
             }
-
-            end: return;
         }
 
-        public static void SetDirectories()
+        private static FileInfo PromptCacheFile()
         {
-            // Needed to use AddDllDirectory
-            NativeInterop.SetDefaultDllDirectories(0x1000u); // LOAD_LIBRARY_SEARCH_DEFAULT_DIRS
-            // Add the tools directory to the search path to simplify usage of [DllImport]
-            NativeInterop.AddDllDirectory(Path.Combine(TagToolDirectory, "Tools"));
-        }
-
-        public static void ReportElapsed()
-        {
-            _stopWatch.Stop();
-            TimeSpan t = TimeSpan.FromMilliseconds(_stopWatch.ElapsedMilliseconds);
-
-            string timeDisplay = $"{t.TotalMilliseconds} milliseconds";
-
-            if (t.TotalMilliseconds > 10000)
+            while (true)
             {
-                timeDisplay = $"{t.Minutes} minutes and {t.Seconds} seconds";
+                Console.WriteLine("\nEnter the path to a Halo cache file (.map/.dat):");
+                Console.Write("> ");
 
-                if (t.Hours > 0)
-                    timeDisplay = $"{t.Hours} hours, " + timeDisplay;
+                string cacheFilePath = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(cacheFilePath))
+                    continue;
+
+                switch (cacheFilePath.ToLower())
+                {
+                    case "exit":
+                    case "quit":
+                        Environment.Exit(0);
+                        break;
+                }
+
+                cacheFilePath = ResolveCacheFilePath(cacheFilePath);
+
+                // If the file was found return it
+                if (File.Exists(cacheFilePath))
+                    return new FileInfo(cacheFilePath);
+
+                Log.Error("Invalid path to a tag cache!");
+            }
+        }
+
+        private static GameCache OpenCacheFile(FileInfo fileInfo)
+        {
+#if !DEBUG
+            try
+            {
+#endif
+            return GameCache.Open(fileInfo);
+#if !DEBUG
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+                ConsoleHistory.Dump("hott_*_init.log");
+                return null;
+            }
+#endif
+        }
+
+        private static string ResolveCacheFilePath(string path)
+        {
+            path = path.Trim('\"', '\\', '/');
+
+            // Legacy support for maps and root directories
+            if (!path.EndsWith(".map") && !path.EndsWith(".dat"))
+            {
+                string append = path.EndsWith("maps") ? "tags.dat" : "maps\\tags.dat";
+                path = Path.Combine(path, append);
             }
 
-            Console.Write($"{timeDisplay} elapsed with ");
+            return path;
+        }
 
-            Console.ForegroundColor = (ErrorCount == 0) ? ConsoleColor.Green : ConsoleColor.Red;
-            Console.Write($"{ErrorCount} errors ");
-            Console.ResetColor();
+        private static string[] ReadAutoExecFile()
+        {
+            string autoExecFilePath = Path.Combine(DirectoryPaths.Base, AutoExecFileName);
+            if (!File.Exists(autoExecFilePath))
+                return [];
 
-            Console.Write("and ");
+            return File.ReadAllLines(autoExecFilePath);
+        }
 
-            Console.ForegroundColor = (WarningCount == 0) ? Console.ForegroundColor : ConsoleColor.DarkYellow;
-            Console.Write($"{WarningCount} warnings");
-            Console.ResetColor();
+        private static bool RunAutoExec(CommandRunner commandRunner, string[] args, string autoexecCommand)
+        {
+            object result = null;
 
-            Console.Write(".\n");
+            // Allow passing .cmds and .cs files directly
+            if (args.Length > 1 && args[1].EndsWith(".cs"))
+            {
+                if (ExecuteCSharpScript(args[1..], commandRunner.ContextStack) != 0)
+                    return false;
+            }
+            else if (args.Length > 1 && args[1].EndsWith(".cmds"))
+            {
+                result = commandRunner.RunCommandScript(args[1]);
+            }
+            else
+            {
+                // Legacy support for executing a command
+                result = commandRunner.RunCommand(autoexecCommand);
+            }
 
-            ErrorCount = 0;
-            WarningCount = 0;
-            _stopWatch.Reset();
+            if (result is TagToolError error)
+            {
+                Log.Error(error.Message);
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool RunAutoExecFile(CommandRunner commandRunner, string[] commands)
+        {
+            var reader = new StringReader(string.Join(Environment.NewLine, commands));
+
+            object result = commandRunner.RunCommandScript(AutoExecFileName, reader);
+            if (result is TagToolError error)
+            {
+                Log.Error(error.Message);
+                return false;
+            }
+
+            return true;
+        }
+
+        private static int ExecuteCSharpScript(string[] args, CommandContextStack contextStack)
+        {
+            try
+            {
+                var evalContext = new ScriptEvaluationContext(contextStack);
+                contextStack.ScriptEvaluator.ExecuteScriptFile(evalContext, filePath: args[0], args: args[1..]);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex);
+                return -1;
+            }
         }
     }
 }

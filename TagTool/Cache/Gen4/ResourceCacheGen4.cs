@@ -58,6 +58,9 @@ namespace TagTool.Cache.Gen4
             if (resourceReference == null)
                 return null;
 
+            if (resourceReference.Gen3ResourceID == DatumHandle.None)
+                return null;
+
             return ResourceGestalt.Resources[resourceReference.Gen3ResourceID.Index];
         }
 
@@ -458,9 +461,9 @@ namespace TagTool.Cache.Gen4
             return decompressed;
         }
 
-        public override object GetBitmapTextureInteropResource(object value)
+        public override bool IsResourceValid(TagResourceReference resourceReference)
         {
-            throw new NotImplementedException();
+            return IsResourceValid(GetTagResourceFromReference(resourceReference));
         }
     }
 }

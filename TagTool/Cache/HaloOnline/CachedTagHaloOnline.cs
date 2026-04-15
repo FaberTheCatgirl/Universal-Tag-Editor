@@ -11,9 +11,15 @@ namespace TagTool.Cache.HaloOnline
     {
         public CachedTagHaloOnline() : base() { }
 
-        public CachedTagHaloOnline(int index, string name = null) : base(index, name) { }
+        public CachedTagHaloOnline(TagCache tagCache, int index, string name = null) : base(index, name) 
+        { 
+            TagCache = tagCache; 
+        }
 
-        public CachedTagHaloOnline(int index, TagGroupGen3 group, string name = null) : base(index, group, name) { }
+        public CachedTagHaloOnline(TagCache tagCache, int index, TagGroup group, string name = null) : base(index, group, name) 
+        {
+            TagCache = tagCache;
+        }
 
         public override uint DefinitionOffset => Offset;
 
@@ -27,6 +33,10 @@ namespace TagTool.Cache.HaloOnline
         private List<uint> _resourceOffsets = new List<uint>();
         private List<uint> _tagReferenceOffsets = new List<uint>();
 
+        /// <summary>
+        /// The tag cache this instance belongs to
+        /// </summary>
+        public TagCache TagCache;
 
         /// <summary>
         /// Gets the offset of the tag's header, or -1 if the tag is not in a file.
@@ -105,11 +115,8 @@ namespace TagTool.Cache.HaloOnline
             var parentGroupTag = new Tag(reader.ReadInt32());      // 0x18 int32  parent group tag
             var grandparentGroupTag = new Tag(reader.ReadInt32()); // 0x1C int32  grandparent group tag
             var groupId = new StringId(reader.ReadUInt32());     // 0x20 uint32 group name stringid
-
-            if (stringTable.GetString(groupId) == "invalid")
-                Group = new TagGroupGen3(groupTag, parentGroupTag, grandparentGroupTag, "map_list");
-            else
-                Group = new TagGroupGen3(groupTag, parentGroupTag, grandparentGroupTag, stringTable.GetString(groupId));
+ 
+            Group = new TagGroupGen3(groupTag, parentGroupTag, grandparentGroupTag, stringTable.GetString(groupId) ?? "<invalid>");
 
             // Read dependencies
             var dependencies = new HashSet<int>();

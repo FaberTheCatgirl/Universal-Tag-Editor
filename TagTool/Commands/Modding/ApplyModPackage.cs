@@ -60,10 +60,10 @@ namespace TagTool.Commands.Modding
 
             if (tagCacheIndex != ModCache.GetCurrentTagCacheIndex())
             {
-                if (!ModCache.SetActiveTagCache(tagCacheIndex))
-                {
-                    return new TagToolError(CommandError.CustomMessage, "Failed to apply mod package to base cache, no changes applied");
-                }
+                if (!ModCache.BaseModPackage.IsValidTagCacheIndex(tagCacheIndex))
+                    return new TagToolError(CommandError.ArgInvalid, $"Invalid tag cache index {tagCacheIndex}");
+
+                ModCache.SetActiveTagCache(tagCacheIndex);
             }
 
             TagMapping = new Dictionary<int, int>();
@@ -93,43 +93,15 @@ namespace TagTool.Commands.Modding
                 }
 
                 // fixup map files
-                foreach (var mapFile in ModCache.BaseModPackage.MapFileStreams)
+                foreach (var entry in ModCache.BaseModPackage.MapFiles)
                 {
-                    if (BaseCache is GameCacheModPackage)
-                    {
-                        var reader = new EndianReader(mapFile);
+                    MapFile map = entry.MapFile;
+                    var header = (CacheFileHeaderGenHaloOnline)map.Header;
+                    var modIndex = header.ScenarioTagIndex;
+                    TagMapping.TryGetValue(modIndex, out int newScnrIndex);
+                    header.ScenarioTagIndex = newScnrIndex;
 
-                        MapFile map = new MapFile();
-                        map.Read(reader);
-                        var header = (CacheFileHeaderGenHaloOnline)map.Header;
-                        var modIndex = header.ScenarioTagIndex;
-                        TagMapping.TryGetValue(modIndex, out int newScnrIndex);
-                        header.ScenarioTagIndex = newScnrIndex;
-
-                        var modPackCache = BaseCache as GameCacheModPackage;
-                        modPackCache.AddMapFile(mapFile, header.MapId);
-                    }
-                    else
-                    {
-                        using (var reader = new EndianReader(mapFile))
-                        {
-                            MapFile map = new MapFile();
-                            map.Read(reader);
-                            var header = (CacheFileHeaderGenHaloOnline)map.Header;
-                            var modIndex = header.ScenarioTagIndex;
-                            TagMapping.TryGetValue(modIndex, out int newScnrIndex);
-                            header.ScenarioTagIndex = newScnrIndex;
-                            var mapName = header.Name;
-
-                            var mapPath = $"{BaseCache.Directory.FullName}\\{mapName}.map";
-                            var file = new FileInfo(mapPath);
-                            var fileStream = file.OpenWrite();
-                            using (var writer = new EndianWriter(fileStream, map.EndianFormat))
-                            {
-                                map.Write(writer);
-                            }
-                        }
-                    }
+                    BaseCache.MapFiles.Add(map);
                 }
 
                 // apply .campaign file
@@ -319,13 +291,10 @@ namespace TagTool.Commands.Modding
             if (resource.Page.Index == -1)
                 return resource;
 
-            var resourceStream = new MemoryStream();
             var resourceCache = ModCache.ResourceCaches.GetResourceCache(ResourceLocation.Mods);
-            resourceCache.Decompress(modPack.ResourcesStream, resource.Page.Index, resource.Page.CompressedBlockSize, resourceStream);
-            resourceStream.Position = 0;
+            byte[] data = resourceCache.ExtractRaw(modPack.ResourcesStream, resource.Page.Index, resource.Page.CompressedBlockSize);
             resource.ChangeLocation(ResourceLocation.ResourcesB);
-            resource.Page.OldFlags &= ~OldRawPageFlags.InMods;
-            BaseCache.ResourceCaches.AddResource(resource, resourceStream);
+            BaseCache.ResourceCaches.AddRawResource(resource, data);
 
             return resource;
         }
@@ -367,7 +336,7 @@ namespace TagTool.Commands.Modding
             var currentForg = (ForgeGlobalsDefinition)BaseCache.Deserialize(CacheStream, currentForgTag);
 
             // hardcoded base indices:
-            int[] baseBlockCounts = new int[] { 0, 15, 173, 6, 81, 478, 9, 12 };
+            int[] baseBlockCounts = new int[] { 0, 20, 173, 6, 83, 498, 9, 12 };
 
             for (int i = baseBlockCounts[0]; i < forg.ReForgeMaterialTypes.Count; i++)
                 currentForg.ReForgeMaterialTypes.Add(forg.ReForgeMaterialTypes[i]);
@@ -424,30 +393,30 @@ namespace TagTool.Commands.Modding
         {
             if (expr.Flags == HsSyntaxNodeFlags.Expression)
             {
-                switch (expr.ValueType.HaloOnline)
+                switch (expr.ValueType)
                 {
-                    case HsType.HaloOnlineValue.Sound:
-                    case HsType.HaloOnlineValue.Effect:
-                    case HsType.HaloOnlineValue.Damage:
-                    case HsType.HaloOnlineValue.LoopingSound:
-                    case HsType.HaloOnlineValue.AnimationGraph:
-                    case HsType.HaloOnlineValue.DamageEffect:
-                    case HsType.HaloOnlineValue.ObjectDefinition:
-                    case HsType.HaloOnlineValue.Bitmap:
-                    case HsType.HaloOnlineValue.Shader:
-                    case HsType.HaloOnlineValue.RenderModel:
-                    case HsType.HaloOnlineValue.StructureDefinition:
-                    case HsType.HaloOnlineValue.LightmapDefinition:
-                    case HsType.HaloOnlineValue.CinematicDefinition:
-                    case HsType.HaloOnlineValue.CinematicSceneDefinition:
-                    case HsType.HaloOnlineValue.BinkDefinition:
-                    case HsType.HaloOnlineValue.AnyTag:
-                    case HsType.HaloOnlineValue.AnyTagNotResolving:
+                    case HsType.Sound:
+                    case HsType.Effect:
+                    case HsType.Damage:
+                    case HsType.LoopingSound:
+                    case HsType.AnimationGraph:
+                    case HsType.DamageEffect:
+                    case HsType.ObjectDefinition:
+                    case HsType.Bitmap:
+                    case HsType.Shader:
+                    case HsType.RenderModel:
+                    case HsType.StructureDefinition:
+                    case HsType.LightmapDefinition:
+                    case HsType.CinematicDefinition:
+                    case HsType.CinematicSceneDefinition:
+                    case HsType.BinkDefinition:
+                    case HsType.AnyTag:
+                    case HsType.AnyTagNotResolving:
                         ConvertScriptTagReferenceExpressionData(modPack, expr);
                         return;
 
-                    case HsType.HaloOnlineValue.AiLine when BitConverter.ToInt32(expr.Data, 0) != -1:
-                    case HsType.HaloOnlineValue.StringId:
+                    case HsType.AiLine when BitConverter.ToInt32(expr.Data, 0) != -1:
+                    case HsType.StringId:
                         ConvertScriptStringIdExpressionData(modPack, expr);
                         return;
                     default:

@@ -7,7 +7,8 @@ using System;
 
 namespace TagTool.Ai
 {
-    [TagStructure(Size = 0x1B0, MaxVersion = CacheVersion.Halo3Retail)]
+    [TagStructure(Size = 0x1B0, MaxVersion = CacheVersion.Halo3Retail, Platform = CachePlatform.Original)]
+    [TagStructure(Size = 0xE4, MaxVersion = CacheVersion.Halo3Retail, Platform = CachePlatform.MCC)]
     [TagStructure(Size = 0x144, MinVersion = CacheVersion.Halo3ODST, MaxVersion = CacheVersion.HaloOnline700123)]
     [TagStructure(Size = 0x1B0, MinVersion = CacheVersion.HaloReach)]
     public class AiGlobalsDatum : TagStructure
@@ -17,22 +18,22 @@ namespace TagTool.Ai
         public float AiInPlayerVehicleOnAiWeaponDamageScale; // [0,1] Global scale on weapon damage made by AI in a vehicle with the player on other AI
         public float DangerBroadlyFacing;
 
-        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 4, Flags = TagFieldFlags.Padding)]
+        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 4, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
         public byte[] Padding;
 
         public float DangerShootingNear;
 
-        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 4, Flags = TagFieldFlags.Padding)]
+        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 4, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
         public byte[] Padding1;
 
         public float DangerShootingAt;
 
-        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 4, Flags = TagFieldFlags.Padding)]
+        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 4, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
         public byte[] Padding2;
 
         public float DangerExtremelyClose;
 
-        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 4, Flags = TagFieldFlags.Padding)]
+        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 4, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
         public byte[] Padding3;
 
         public float DangerShieldDamage;
@@ -40,13 +41,13 @@ namespace TagTool.Ai
         public float DangerBodyDamage;
         public float DangerExtendedBodyDamage;
 
-        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 48, Flags = TagFieldFlags.Padding)]
+        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 48, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
         public byte[] Padding4;
 
         public CachedTag GlobalDialogue;
         public StringId DefaultMissionDialogueSoundEffect;
 
-        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 20, Flags = TagFieldFlags.Padding)]
+        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 20, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
         public byte[] Padding5;
 
         public float JumpDown; // wu/tick
@@ -73,7 +74,7 @@ namespace TagTool.Ai
         public Bounds<float> HoistCrouch;
         public Bounds<float> HoistStand;
 
-        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 24, Flags = TagFieldFlags.Padding)]
+        [TagField(MaxVersion = CacheVersion.Halo3Retail, Length = 24, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
         public byte[] Padding6;
 
         public Bounds<float> VaultStep; // wus
@@ -86,12 +87,12 @@ namespace TagTool.Ai
         [TagField(MinVersion = CacheVersion.Halo3ODST)]
         public PathfindingSearchRangeStruct PathfindingSearchRanges;
 
-        [TagField(Flags = TagFieldFlags.Padding, Length = 48, MaxVersion = CacheVersion.Halo3Retail)]
+        [TagField(Flags = TagFieldFlags.Padding, Length = 48, MaxVersion = CacheVersion.Halo3Retail, Platform = CachePlatform.Original)]
         public byte[] Padding7;
 
         public List<GravemindPropertyBlock> GravemindProperties;
 
-        [TagField(Flags = TagFieldFlags.Padding, Length = 48, MaxVersion = CacheVersion.Halo3Retail)]
+        [TagField(Flags = TagFieldFlags.Padding, Length = 48, MaxVersion = CacheVersion.Halo3Retail, Platform = CachePlatform.Original)]
         public byte[] Padding8;
 
         public float ScaryTargetThreshold; // A target of this scariness is offically considered scary (by combat dialogue, etc.)

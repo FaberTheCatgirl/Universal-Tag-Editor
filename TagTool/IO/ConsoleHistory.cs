@@ -1,19 +1,22 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Remoting;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace TagTool.IO
 {
-    public static class ConsoleHistory
+    public static partial class ConsoleHistory
     {
         private static bool IsNewLine { get; set; } = true;
         private static string CurrentLine { get; set; } = "";
         private static byte[] InputBuffer = new byte[4096];
 
         private static List<string> Lines { get; } = new List<string>();
+
+        [GeneratedRegex(@"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")]
+        private static partial Regex AnsiRegex();
 
         public static void Initialize()
         {
@@ -42,12 +45,20 @@ namespace TagTool.IO
             using (var writer = new StreamWriter(File.Create($"logs/{name}")))
             {
                 foreach (var line in Lines)
-                    writer.WriteLine(line);
+                    writer.WriteLine(StripAsciiEscapeSequences(line));
                 if (!IsNewLine)
-                    writer.Write(CurrentLine);
+                    writer.Write(StripAsciiEscapeSequences(CurrentLine));
             }
 
             return name;
+        }
+
+        private static string StripAsciiEscapeSequences(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            return AnsiRegex().Replace(input, "");
         }
 
         public class Writer : TextWriter
@@ -62,9 +73,6 @@ namespace TagTool.IO
 
             public override Encoding Encoding =>
                 BaseWriter.Encoding;
-
-            public override object InitializeLifetimeService() =>
-                BaseWriter.InitializeLifetimeService();
 
             private void WriteBase(string value)
             {
@@ -304,11 +312,6 @@ namespace TagTool.IO
                 BaseWriter.Close();
             }
 
-            public override ObjRef CreateObjRef(Type requestedType)
-            {
-                return BaseWriter.CreateObjRef(requestedType);
-            }
-
             public override void Flush()
             {
                 Lines.Add(CurrentLine);
@@ -373,9 +376,6 @@ namespace TagTool.IO
                 base.Close();
             }
 
-            public override ObjRef CreateObjRef(Type requestedType) =>
-                BaseReader.CreateObjRef(requestedType);
-            
             public override int Peek() =>
                 BaseReader.Peek();
 

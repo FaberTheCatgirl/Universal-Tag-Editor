@@ -6,6 +6,7 @@ using System.IO;
 using System.Xml;
 using TagTool.Commands.Bitmaps;
 using TagTool.Commands.Bipeds;
+using TagTool.Commands.Camera;
 using TagTool.Commands.Decorators;
 using TagTool.Commands.Video;
 using TagTool.Commands.Unicode;
@@ -29,6 +30,7 @@ using DefinitionsGen4 = TagTool.Tags.Definitions.Gen4;
 using CommandsGen4 = TagTool.Commands.Gen4;
 using TagTool.Commands.Common;
 using TagTool.Commands.Tags;
+using TagTool.Scripting.CSharp;
 
 namespace TagTool.Commands.Editing
 {
@@ -47,8 +49,8 @@ namespace TagTool.Commands.Editing
             var tagName = tag?.Name ?? $"0x{tag.Index:X4}";
 
             var commandContext = new CommandContext(contextStack.Context, string.Format("{0}.{1}", tagName, groupName));
-            commandContext.ScriptGlobals.Add(ExecuteCSharpCommand.GlobalTagKey, tag);
-            commandContext.ScriptGlobals.Add(ExecuteCSharpCommand.GlobalDefinitionKey, definition);
+            commandContext.ScriptGlobals.Add(nameof(ScriptEvaluationContext.Tag), tag);
+            commandContext.ScriptGlobals.Add(nameof(ScriptEvaluationContext.Definition), definition);
 
             commandContext.AddCommand(new ExecuteCSharpCommand(contextStack));
             if (CacheVersionDetection.IsInGen(CacheGeneration.Third, cache.Version) || CacheVersionDetection.IsInGen(CacheGeneration.HaloOnline, cache.Version))
@@ -138,7 +140,6 @@ namespace TagTool.Commands.Editing
                         LightmapContextFactory.Populate(commandContext, cache, tag, (ScenarioLightmapBspData)definition);
                         break;
 
-
                     case "vfsl":
                         VFilesContextFactory.Populate(commandContext, cache, tag, (VFilesList)definition);
                         break;
@@ -157,6 +158,10 @@ namespace TagTool.Commands.Editing
 
                     case "sddt":
                         StructureDesignContextFactory.Populate(commandContext, cache, tag, (StructureDesign)definition);
+                        break;
+
+                    case "trak":
+                        CameraTrackContextFactory.Populate(commandContext, cache, tag, (CameraTrack)definition);
                         break;
                 }
             }

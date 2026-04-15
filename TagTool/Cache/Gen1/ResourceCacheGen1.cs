@@ -9,6 +9,7 @@ using TagTool.Tags.Resources;
 using TagTool.BlamFile;
 using TagTool.Cache.Resources;
 using System.Collections.Generic;
+using TagTool.Extensions;
 
 namespace TagTool.Cache.Gen1
 {
@@ -98,10 +99,7 @@ namespace TagTool.Cache.Gen1
 
             CacheStream.Position = offset;
 
-            var readSize = CacheStream.Read(result, 0, size);
-
-            if (readSize != size)
-                return null;
+            CacheStream.ReadExactly(result);
 
             return result;
         }
