@@ -5,8 +5,6 @@ namespace TagTool.Shaders.ShaderMatching
 {
     public class LightVolumeSorter : SortingInterface
     {
-        public static readonly LightVolumeSorter Instance = new();
-
         private static List<LightVolumeOptionTypes> TypeOrder = new List<LightVolumeOptionTypes> {
            LightVolumeOptionTypes.fog,
            LightVolumeOptionTypes.blend_mode,

@@ -10,8 +10,6 @@ using static TagTool.Tags.TagFieldFlags;
 using BindingFlags = System.Reflection.BindingFlags;
 using System.IO;
 using System.Linq;
-using System.Buffers;
-using System.Collections;
 
 namespace TagTool.Serialization
 {
@@ -37,7 +35,7 @@ namespace TagTool.Serialization
 
             var resourceContext = context as ResourceDefinitionSerializationContext;
 
-            var result = (ID3DStructure)Activator.CreateInstance(valueType);
+            var result = Activator.CreateInstance(valueType);
             var elementType = valueType.GenericTypeArguments[0];
 
             // Read the pointer
@@ -53,8 +51,9 @@ namespace TagTool.Serialization
 
             nextReader.BaseStream.Position = address.Offset;
 
-            result.Definition = DeserializeValue(nextReader, context, null, elementType);
-            result.AddressType = address.Type;
+            var definition = DeserializeValue(nextReader, context, null, elementType);
+            valueType.GetField("Definition").SetValue(result, definition);
+            valueType.GetField("AddressType").SetValue(result, address.Type);
 
             reader.BaseStream.Position = startOffset + 0xC;
             return result;
@@ -67,7 +66,8 @@ namespace TagTool.Serialization
 
             var resourceContext = context as ResourceDefinitionSerializationContext;
 
-            var result = (ITagBlock)Activator.CreateInstance(valueType);
+            var result = Activator.CreateInstance(valueType);
+            var elementType = valueType.GenericTypeArguments[0];
 
             // Read count and offset
             var startOffset = reader.BaseStream.Position;
@@ -76,12 +76,12 @@ namespace TagTool.Serialization
             var pointer = new CacheAddress(reader.ReadUInt32());
 
             // Set block address type
-            result.AddressType = pointer.Type;
+            valueType.GetField("AddressType").SetValue(result, pointer.Type);
 
             if (count == 0)
             {
                 // Null tag block
-                reader.BaseStream.Position = startOffset + (Version > CacheVersion.Halo2PC ? 0xC : 0x8);
+                reader.BaseStream.Position = startOffset + (Version > CacheVersion.Halo2Vista ? 0xC : 0x8);
                 return result;
             }
 
@@ -92,9 +92,17 @@ namespace TagTool.Serialization
             var nextReader = resourceContext.GetReader(pointer.Type);
             nextReader.BaseStream.Position = pointer.Offset;
 
-            DeserializeTagBlockCore(nextReader, resourceContext, result, count, valueType);
+            var methods = valueType.GetMethods();
+            // select the add method from IList<T> and not IList interfaces
+            var addMethod = methods.FirstOrDefault(method => method.Name == "Add" & method.ReturnType == typeof(void));
 
-			reader.BaseStream.Position = startOffset + (Version > CacheVersion.Halo2PC ? 0xC : 0x8);
+            for (var i = 0; i < count; i++)
+            {
+                var element = DeserializeValue(nextReader, resourceContext, null, elementType);
+                addMethod.Invoke(result, new[] { element });
+            }
+
+            reader.BaseStream.Position = startOffset + (Version > CacheVersion.Halo2Vista ? 0xC : 0x8);
 
             return result;
         }
@@ -109,13 +117,13 @@ namespace TagTool.Serialization
             // Read size and pointer
             var startOffset = reader.BaseStream.Position;
             var size = reader.ReadInt32();
-            if (Version > CacheVersion.Halo2PC)
+            if (Version > CacheVersion.Halo2Vista)
                 reader.BaseStream.Position = startOffset + 0xC;
             var pointer = reader.ReadUInt32();
             if (pointer == 0)
             {
                 // Null data reference
-                reader.BaseStream.Position = startOffset + (Version > CacheVersion.Halo2PC ? 0x14 : 0x8);
+                reader.BaseStream.Position = startOffset + (Version > CacheVersion.Halo2Vista ? 0x14 : 0x8);
                 return new TagData();
             }
 
@@ -127,7 +135,7 @@ namespace TagTool.Serialization
             // Read the data
             var result = new byte[size];
             nextReader.Read(result, 0, size);
-            reader.BaseStream.Position = startOffset + (Version > CacheVersion.Halo2PC ? 0x14 : 0x8);
+            reader.BaseStream.Position = startOffset + (Version > CacheVersion.Halo2Vista ? 0x14 : 0x8);
 
             // instantiate tagdata and return it
             var tagData = new TagData

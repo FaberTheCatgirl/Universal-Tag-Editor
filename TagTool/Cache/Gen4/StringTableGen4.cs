@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using TagTool.Common;
 using TagTool.IO;
 using TagTool.BlamFile;
@@ -11,6 +12,8 @@ namespace TagTool.Cache.Gen4
 
         public StringTableGen4(EndianReader reader, MapFile baseMapFile) : base()
         {
+            Version = baseMapFile.Version;
+
             var Gen4Header = (CacheFileHeaderGen4)baseMapFile.Header;
             var stringIDHeader = Gen4Header.GetStringIDHeader();
 
@@ -61,20 +64,20 @@ namespace TagTool.Cache.Gen4
             if (sectionTable != null && sectionTable.Sections[(int)CacheFileSectionType.StringSection].Size == 0)
                 return;
 
-            switch (baseMapFile.CachePlatform)
+            uint stringIdIndexTableOffset;
+            uint stringIdBufferOffset;
+            if (Version > CacheVersion.Halo3Beta)
             {
-                case CachePlatform.MCC:
-                    Resolver = new StringIdResolverMCC(reader, stringIDHeader, sectionTable);
-                    break;
-                default:
-                    Resolver = new StringIdResolverHalo4();
-                    StringKey = "ILikeSafeStrings";
-                    break;
+                stringIdIndexTableOffset = sectionTable.GetOffset(CacheFileSectionType.StringSection, stringIDHeader.IndicesOffset);
+                stringIdBufferOffset = sectionTable.GetOffset(CacheFileSectionType.StringSection, stringIDHeader.BufferOffset);
             }
-
-            uint stringIdIndexTableOffset = sectionTable.GetOffset(CacheFileSectionType.StringSection, stringIDHeader.IndicesOffset);
-            uint stringIdBufferOffset = sectionTable.GetOffset(CacheFileSectionType.StringSection, stringIDHeader.BufferOffset);
+            else
+            {
+                stringIdIndexTableOffset = stringIDHeader.IndicesOffset;
+                stringIdBufferOffset = stringIDHeader.BufferOffset;
+            }
             
+
             //
             // Read offsets
             //
@@ -88,21 +91,32 @@ namespace TagTool.Cache.Gen4
                 Add("");
             }
 
+            reader.SeekTo(stringIdBufferOffset);
+
+            EndianReader newReader;
+
+            if (StringKey == "")
+                newReader = new EndianReader(new MemoryStream(reader.ReadBytes(stringIDHeader.BufferSize)), reader.Format);
+            else
+                newReader = new EndianReader(reader.DecryptAesSegment(stringIDHeader.BufferSize, StringKey), reader.Format);
 
             //
             // Read strings
             //
 
-            reader.SeekTo(stringIdBufferOffset);
-
-            StringBuffer stringsBuffer = StringKey == ""
-                ? new StringBuffer(reader.ReadBytes(stringIDHeader.BufferSize))
-                : new StringBuffer(reader.DecryptAesSegment(stringIDHeader.BufferSize, StringKey));
-
             for (var i = 0; i < stringOffset.Length; i++)
             {
-                this[i] = stringOffset[i] == -1 ? "<null>" : stringsBuffer.GetString(stringOffset[i]);
+                if (stringOffset[i] == -1)
+                {
+                    this[i] = "<null>";
+                    continue;
+                }
+
+                newReader.SeekTo(stringOffset[i]);
+                this[i] = newReader.ReadNullTerminatedString();
             }
+            newReader.Close();
+            newReader.Dispose();
         }
 
         /*

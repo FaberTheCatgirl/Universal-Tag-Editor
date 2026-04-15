@@ -187,7 +187,7 @@ namespace TagTool.Shaders
                     {
                         var parameter = rmt2.RoutingInfo[k];
 
-                        StringId name = StringId.Empty;
+                        StringId name = StringId.Invalid;
                         ushort register = parameter.DestinationIndex;
 
                         switch (j)

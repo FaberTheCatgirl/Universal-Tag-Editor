@@ -24,14 +24,11 @@ namespace TagTool.Cache.MCC
         public byte ValidSharedFileMask;
         public byte Unused1;
         public TagNameHeader TagNamesHeader;
-        public StringIDHeader StringIdsHeader;
+        public StringIDHeaderMCC StringIdsHeader;
         public int Language;
         public int MinorVersion;
-
-        [TagField(Length = 6, Gen = CacheGeneration.Third)]
-        [TagField(Length = 5, Gen = CacheGeneration.Fourth)]
+        [TagField(Length = 6)]
         public ulong[] Timestamps;
-
         [TagField(Length = 32)]
         public byte[] CreatorId;
         [TagField(Length = 32)]
@@ -66,8 +63,6 @@ namespace TagTool.Cache.MCC
         [TagField(Length = 0x3B00, MaxVersion = CacheVersion.Halo3ODST)]
         [TagField(Length = 0x9B00, MinVersion = CacheVersion.HaloReach)]
         public byte[] Unknown1;
-        [TagField(Length = 0x14008, Gen = CacheGeneration.Fourth)]
-        public byte[] Unknown2;
         public Tag FooterSignature;
 
         public override string GetBuild() => Build;
@@ -87,7 +82,13 @@ namespace TagTool.Cache.MCC
         public override CacheFileSharedType GetSharedCacheType() => SharedCacheType;
 
         // TODO: clean up
-        public override StringIDHeader GetStringIDHeader() => StringIdsHeader;
+        public override StringIDHeader GetStringIDHeader() => new StringIDHeader()
+        {
+            Count = StringIdsHeader.Count,
+            IndicesOffset = StringIdsHeader.IndicesOffset,
+            BufferOffset = StringIdsHeader.BufferOffset,
+            BufferSize = StringIdsHeader.BufferSize
+        };
 
         public override TagMemoryHeader GetTagMemoryHeader() => TagMemoryHeader;
 
@@ -95,13 +96,24 @@ namespace TagTool.Cache.MCC
 
         public override ulong GetTagTableHeaderOffset() => throw new NotImplementedException();
 
+        [TagStructure(Size = 0x18, MinVersion = CacheVersion.Halo3Retail)]
+        public class StringIDHeaderMCC : TagStructure
+        {
+            public int Count;
+            public uint BufferOffset;
+            public int BufferSize;
+            public uint IndicesOffset;
+            public int NamespacesCount;
+            public uint NamespacesOffset;
+        }
+
         public enum HaloEngineVersion : sbyte
         {
             Halo1,
-            Halo2,
+            Unknown1,
             Halo3,
             Unknown3,
-            H2AMP,
+            Unknown4,
             Halo3ODST,
             HaloReach,
             Halo4,

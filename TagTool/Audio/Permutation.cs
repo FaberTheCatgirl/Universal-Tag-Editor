@@ -11,7 +11,7 @@ namespace TagTool.Audio
     [TagStructure(Size = 0x2C, MinVersion = CacheVersion.HaloOnlineED, MaxVersion = CacheVersion.HaloOnline700123, Platform = CachePlatform.Original)]
     [TagStructure(Size = 0x14, MinVersion = CacheVersion.HaloReach, Platform = CachePlatform.Original, BuildType = CacheBuildType.ReleaseBuild)]
     [TagStructure(Size = 0x24, MinVersion = CacheVersion.HaloReach, Platform = CachePlatform.Original, BuildType = CacheBuildType.TagsBuild)]
-    [TagStructure(Size = 0x18, MinVersion = CacheVersion.HaloReach, Platform = CachePlatform.MCC)]
+   
     public class Permutation : TagStructure
     {
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.ReleaseBuild)]
@@ -47,7 +47,7 @@ namespace TagTool.Audio
         public sbyte EncodedGain;
 
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.ReleaseBuild)]
-        public sbyte PermutationInfoIndex;
+        public sbyte OverallPermutationIndex;
 
         [TagField(MinVersion = CacheVersion.HaloReach, BuildType = CacheBuildType.ReleaseBuild)]
         public short FirstLayerMarkerIndex;
@@ -56,8 +56,7 @@ namespace TagTool.Audio
         public short LayerMarkerCount;
 
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
-        [TagField(Gen = CacheGeneration.HaloOnline)]
-        public short RawInfoIndex; // indexes LanguagePermutations and EncodedPermutationSections
+        public short RawInfoIndex;
 
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
         public short PlayFractionType;
@@ -65,19 +64,20 @@ namespace TagTool.Audio
         [TagField(MinVersion = CacheVersion.HaloReach, BuildType = CacheBuildType.TagsBuild)]
         public Bounds<short> MissionRange;
 
-        [TagField(Gen = CacheGeneration.HaloOnline)]
-        public short Unknown1;
-
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
-        [TagField(Gen = CacheGeneration.HaloOnline)]
         public ushort PermutationFlags;
 
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
-        [TagField(Gen = CacheGeneration.HaloOnline)]
         public ushort Flags;
 
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
         public List<PermutationLanguage> Languages;
+
+        [TagField(Gen = CacheGeneration.HaloOnline)]
+        public uint PermutationNumber;
+
+        [TagField(Gen = CacheGeneration.HaloOnline)]
+        public uint IsNotFirstPermutation;
 
         [TagField(Gen = CacheGeneration.HaloOnline)]
         public List<PermutationChunk> PermutationChunks;
@@ -112,22 +112,8 @@ namespace TagTool.Audio
         public sbyte EncodedGain; // dB
         public sbyte PermutationInfoIndex;
         public short LanguageNeutralTime; // ms
-        [TagField(Platform = CachePlatform.Original)]
-        public uint SampleSize;
-        [TagField(Platform = CachePlatform.Original)]
+        public int SampleSize;
         public short FirstChunk;
-        [TagField(Platform = CachePlatform.Original)]
         public short ChunkCount;
-
-        [TagField(Platform = CachePlatform.MCC)]
-        public List<LocalizedChunkInfoBlock> LocalizedChunksInfo;
-
-        [TagStructure(Size = 0x8)]
-        public class LocalizedChunkInfoBlock : TagStructure
-        {
-            public int SampleSize;
-            public short FirstChunk;
-            public short ChunkCount;
-        }
     }
 }

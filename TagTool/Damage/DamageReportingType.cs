@@ -3,12 +3,10 @@ using TagTool.Tags;
 
 namespace TagTool.Damage
 {
-    [TagStructure(Size = 0x1, MaxVersion = CacheVersion.Halo3ODST)]
-    [TagStructure(Size = 0x1, MinVersion = CacheVersion.HaloReach)]
-    [TagStructure(Size = 0x2, MinVersion = CacheVersion.HaloOnlineED, MaxVersion = CacheVersion.HaloOnline700123)]
+    [TagStructure(Size = 0x1)]
     public class DamageReportingType : TagStructure
 	{
-        [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC)]
+        [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista)]
         public Halo2RetailValue Halo2Retail;
 
         [TagField(MinVersion = CacheVersion.Halo3Retail, MaxVersion = CacheVersion.Halo3Retail)]
@@ -66,9 +64,7 @@ namespace TagTool.Damage
             Tank,
             SentinelBeam,
             SentinelRpg,
-            Teleporter,
-            WarthogGunnerGauss,
-            WarthogGunnerRocket
+            Teleporter
         }
 
         public enum Halo3RetailValue : sbyte
@@ -202,7 +198,7 @@ namespace TagTool.Damage
             ElephantTurret
         }
 
-        public enum HaloOnlineValue : short
+        public enum HaloOnlineValue : sbyte
         {
             GuardiansUnknown,
             Guardians,

@@ -10,7 +10,6 @@ using TagTool.Commands.Common;
 using TagTool.Tags;
 using TagTool.IO;
 using TagTool.Commands.Porting;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.Porting
 {
@@ -58,7 +57,7 @@ namespace TagTool.Commands.Porting
             if (Gen1Cache.TagCache.TagDefinitions.GetTagDefinitionType(gen1Tag.Group.Tag) == null ||
                 Cache.TagCache.TagDefinitions.GetTagDefinitionType(gen1Tag.Group.Tag) == null)
             {
-                Log.Error($"Failed to convert tag '{gen1Tag}' Group not supported. Returning null");
+                new TagToolError(CommandError.CustomError, $"Failed to convert tag '{gen1Tag}' Group not supported. Returning null");
                 return null;
             }
             return ConvertTagInternal(cacheStream, gen1CacheStream, resourceStreams, gen1Tag);
@@ -100,8 +99,11 @@ namespace TagTool.Commands.Porting
                     return data;
                 case TagStructure tagStructure: // much faster to pattern match a type than to check for custom attributes.
                     return ConvertStructure(cacheStream, gen1CacheStream, resourceStreams, tagStructure, definition, blamTagName);
+                case PlatformSignedValue _:
+                case PlatformUnsignedValue _:
+                    return data;
                 default:
-                    Log.Warning($"Unhandled type in `ConvertData`: {data.GetType().Name} (probably harmless).");
+                    new TagToolWarning($"Unhandled type in `ConvertData`: {data.GetType().Name} (probably harmless).");
                     break;
             }
 
@@ -160,17 +162,19 @@ namespace TagTool.Commands.Porting
 
         public StringId ConvertStringId(StringId stringId)
         {
-            if (stringId == StringId.Invalid || stringId == StringId.Empty)
+            if (stringId == StringId.Invalid)
                 return stringId;
 
-            string value = Gen1Cache.StringTable.GetString(stringId);
-            if (value == null)
-            {
-                Log.Error($"Failed to resolve string while converting StringId {stringId}");
-                return StringId.Invalid;
-            }
+            var value = Gen1Cache.StringTable.GetString(stringId);
+            var edStringId = Cache.StringTable.GetStringId(value);
 
-            return Cache.StringTable.GetOrAddString(value);
+            if (edStringId != StringId.Invalid)
+                return edStringId;
+
+            if (edStringId == StringId.Invalid || !Cache.StringTable.Contains(value))
+                return Cache.StringTable.AddString(value);
+
+            return stringId;
         }
 
         private List<CachedTag> ParseLegacyTag(string tagSpecifier)
@@ -179,7 +183,7 @@ namespace TagTool.Commands.Porting
 
             if (tagSpecifier.Length == 0 || (!char.IsLetter(tagSpecifier[0]) && !tagSpecifier.Contains('*')) || !tagSpecifier.Contains('.'))
             {
-                Log.Error($"Invalid tag name: {tagSpecifier}");
+                new TagToolError(CommandError.CustomError, $"Invalid tag name: {tagSpecifier}");
                 return new List<CachedTag>();
             }
 
@@ -187,7 +191,7 @@ namespace TagTool.Commands.Porting
 
             if (!Cache.TagCache.TryParseGroupTag(tagIdentifiers[1], out var groupTag))
             {
-                Log.Error($"Invalid tag name: {tagSpecifier}");
+                new TagToolError(CommandError.CustomError, $"Invalid tag name: {tagSpecifier}");
                 return new List<CachedTag>();
             }
 
@@ -201,7 +205,7 @@ namespace TagTool.Commands.Porting
 
             if (result.Count == 0)
             {
-                Log.Error($"Invalid tag name: {tagSpecifier}");
+                new TagToolError(CommandError.CustomError, $"Invalid tag name: {tagSpecifier}");
                 return new List<CachedTag>();
             }
 

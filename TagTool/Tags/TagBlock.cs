@@ -5,25 +5,15 @@ using System;
 
 namespace TagTool.Tags
 {
-    public interface ITagBlock : IList
-    {
-        public CacheAddressType AddressType { get; set; }
-    }
-
-    public class TagBlock<T> : ITagBlock, IList<T>
+    public class TagBlock<T> : IList, IList<T>
     {
         public int Count => Elements.Count;
         public List<T> Elements;
-        public CacheAddressType AddressType = CacheAddressType.Data;
+        public CacheAddressType AddressType;
         
         public TagBlock()
         {
             Elements = new List<T>();
-        }
-
-        public TagBlock(int capacity)
-        {
-            Elements = new List<T>(capacity);
         }
 
         public TagBlock(CacheAddressType addressType)
@@ -56,11 +46,8 @@ namespace TagTool.Tags
 
         public void Clear() => Elements.Clear();
         public void RemoveAt(int index) => Elements.RemoveAt(index);
-
+        
         int ICollection<T>.Count => Count;
-
-        CacheAddressType ITagBlock.AddressType { get => AddressType; set => AddressType = value; }
-
         public void Add(T item) => Elements.Add(item);
         public bool Contains(T item) => Elements.Contains(item);
         public void CopyTo(T[] array, int arrayIndex) => Elements.CopyTo(array, arrayIndex);
@@ -100,14 +87,5 @@ namespace TagTool.Tags
         {
             ((IList)Elements).CopyTo(array, index);
         }
-
-		public void AddRangeBoxed(ReadOnlySpan<object> values)
-		{
-			Elements.EnsureCapacity(Elements.Capacity + values.Length);
-			foreach (var x in values)
-			{
-				Elements.Add((T)x);
-			}
-		}
     }
 }

@@ -1,9 +1,7 @@
 ﻿using System.IO;
 using TagTool.Cache;
-using TagTool.Cache.HaloOnline;
-using TagTool.Cache.Resources;
-using TagTool.Common;
 using TagTool.Tags;
+using TagTool.Cache.HaloOnline;
 
 namespace TagTool.Serialization
 {
@@ -32,23 +30,6 @@ namespace TagTool.Serialization
                     return tag;
             }
             return null;
-        }
-
-        protected override PageableResource PreSerializeTagResource(PageableResource resource)
-        {
-            var modCache = (GameCacheModPackage)Context;
-
-            resource.GetLocation(out ResourceLocation location);
-
-            if (location == ResourceLocation.None || location == ResourceLocation.Mods)
-                return resource;
-
-            // Copy the base cache resource to the mod package
-            var rawResource = modCache.BaseCacheReference.ResourceCaches.ExtractRawResource(resource);
-            resource.ChangeLocation(ResourceLocation.Mods);
-            modCache.ResourceCaches.AddRawResource(resource, rawResource);
-
-            return resource;
         }
     }
 }

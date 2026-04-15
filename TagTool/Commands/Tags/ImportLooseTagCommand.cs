@@ -14,9 +14,6 @@ using TagTool.Common;
 using TagTool.Geometry;
 using static TagTool.Tags.Definitions.PhysicsModel;
 using TagTool.Commands.ModelAnimationGraphs;
-using TagTool.Extensions;
-using System.Collections.Frozen;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.Tags
 {
@@ -77,7 +74,7 @@ namespace TagTool.Commands.Tags
             using (var inStream = File.OpenRead(path))
             {
                 tagData = new byte[inStream.Length];
-                inStream.ReadExactly(tagData);
+                inStream.Read(tagData, 0, tagData.Length);
             }
 
             var singleFileTagReader = new SingleTagFileReader(new PersistChunkReader(new MemoryStream(tagData), TagEndianness));
@@ -94,7 +91,7 @@ namespace TagTool.Commands.Tags
 
             var deserializer = new TagDeserializer(TagCache, TagPlatform);
 
-            FrozenDictionary<TagGroup, Type> TagTypes;
+            Dictionary<TagGroup, Type> TagTypes;
             if (TagCache >= CacheVersion.Halo4)
                 TagTypes = new Cache.Gen4.TagDefinitionsGen4().Gen4Types;
             else
@@ -260,7 +257,7 @@ namespace TagTool.Commands.Tags
                                 });
                                 break;
                             default:
-                                Log.Error($"Render model vertex buffer type '{mesh.Type}' unsupported!");
+                                new TagToolError(CommandError.OperationFailed, $"Render model vertex buffer type '{mesh.Type}' unsupported!");
                                 break;
                         }
 
@@ -290,7 +287,7 @@ namespace TagTool.Commands.Tags
                                 modeResource.IndexBuffers[meshindex].Definition.Format = IndexBufferFormat.TriangleStrip;
                                 break;
                             default:
-                                Log.Error($"Render model index buffer type '{mesh.IndexBufferType}' unsupported!");
+                                new TagToolError(CommandError.OperationFailed, $"Render model index buffer type '{mesh.IndexBufferType}' unsupported!");
                                 break;
                         }
                         
@@ -330,7 +327,7 @@ namespace TagTool.Commands.Tags
                     break;
                 default:
                     if(layout.ResourceDefinitions.Length > 0)
-                        Log.Warning($"'{layout.ResourceDefinitions[0].Name}' import not yet supported!");
+                        new TagToolWarning($"'{layout.ResourceDefinitions[0].Name}' import not yet supported!");
                     break;
             }
 
@@ -408,7 +405,10 @@ namespace TagTool.Commands.Tags
 
             public StringId AddStringId(string stringvalue)
             {
-                return Cache.StringTable.GetOrAddString(stringvalue);
+                var stringId = Cache.StringTable.GetStringId(stringvalue);
+                if (stringId == StringId.Invalid)
+                    stringId = Cache.StringTable.AddString(stringvalue);
+                return stringId;
             }
 
             public CachedTag GetTag(Tag groupTag, string name)

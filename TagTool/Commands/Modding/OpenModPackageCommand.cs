@@ -30,35 +30,41 @@ namespace TagTool.Commands.Modding
 
         public override object Execute(List<string> args)
         {
+            bool useLargeStreams = false;
+
             if (args.Count > 1 && args[0].ToLower() == "large")
             {
+                useLargeStreams = true;
                 args.RemoveAt(0);
             }
 
             if(args.Count != 1)
                 return new TagToolError(CommandError.ArgCount);
 
-            string path = args[0].Trim('/', '\\');
-            if (!path.EndsWith(".pak"))
-                path += ".pak";
-            
-            var file = new FileInfo(path);
-            if (!file.Exists && string.IsNullOrEmpty(Path.GetPathRoot(path)))
-            {
-                GameCache baseCache = Cache;
-                while (baseCache is GameCacheModPackage mod)
-                    baseCache = mod.BaseCacheReference;
+            string path = args[0];
 
-                string parent = baseCache.Directory.Parent.FullName;
-                file = new(Path.Combine(parent, "mods", path));
+            if (Cache.Directory != null)
+            { 
+                path = Cache.Directory.FullName;
+                path = path.Substring(0, path.Length - 4);
+
+                if (!args[0].Contains("/") && !args[0].Contains("\\"))
+                    path += "mods\\" + args[0];
+                else
+                    path = args[0];
+
+                if (!args[0].Contains(".pak"))
+                    path += ".pak";
             }
 
+			var file = new FileInfo(path);
+
             if (!file.Exists)
-                return new TagToolError(CommandError.FileNotFound, $"{path}");
+                return new TagToolError(CommandError.FileNotFound, $"\"{args[0]}\"");
 
             Console.WriteLine("Initializing cache...");
 
-            ModCache = new GameCacheModPackage(Cache, file);
+            ModCache = new GameCacheModPackage(Cache, file, largeResourceStream: useLargeStreams);
             Context = TagCacheContextFactory.Create(ContextStack, ModCache, $"{ModCache.BaseModPackage.Metadata.Name}.pak");
             ContextStack.Push(Context);
 

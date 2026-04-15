@@ -3,7 +3,6 @@ using TagTool.Common;
 using TagTool.Tags;
 using System.Collections.Generic;
 using static TagTool.Tags.TagFieldFlags;
-using System;
 
 namespace TagTool.Ai
 {
@@ -48,17 +47,5 @@ namespace TagTool.Ai
 
         public StringId SampleLine;
         public List<AiVocalizationResponse> Responses;
-
-        [Flags]
-        public enum VocalizationFlags : int
-        {
-            None = 0,
-            Immediate = 1 << 0,
-            Interrupt = 1 << 1,
-            CancelLowPriority = 1 << 2,
-            DisableDialogueEffect = 1 << 3,
-            PredictFacialAnimations = 1 << 4,
-            NoDistanceCheckExceptions = 1 << 5
-        }
     }
 }

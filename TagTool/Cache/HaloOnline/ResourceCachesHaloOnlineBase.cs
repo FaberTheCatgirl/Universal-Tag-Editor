@@ -2,7 +2,6 @@
 using System.IO;
 using TagTool.Cache.Resources;
 using TagTool.Common;
-using TagTool.Extensions;
 using TagTool.IO;
 using TagTool.Serialization;
 using TagTool.Tags;
@@ -40,20 +39,27 @@ namespace TagTool.Cache.HaloOnline
         /// Adds a new pageable_resource to the current cache.
         /// </summary>
         /// <param name="resource">The pageable_resource to add.</param>
-        /// <param name="data">Resource data</param>
+        /// <param name="dataStream">The stream to read the resource data from.</param>
         /// <exception cref="System.ArgumentNullException">resource</exception>
         /// <exception cref="System.ArgumentException">The input stream is not open for reading;dataStream</exception>
-        public virtual void AddResource(PageableResource resource, ReadOnlySpan<byte> data)
+        public virtual void AddResource(PageableResource resource, Stream dataStream)
         {
-            ArgumentNullException.ThrowIfNull(resource);
+            if (resource == null)
+                throw new ArgumentNullException("resource");
+            if (!dataStream.CanRead)
+                throw new ArgumentException("The input stream is not open for reading", "dataStream");
 
             var cache = GetResourceCache(resource, out var location);
-            using var stream = OpenCacheReadWrite(location);
-
-            resource.Page.Index = cache.Add(stream, data, out uint compressedSize);
-            resource.Page.CompressedBlockSize = compressedSize;
-            resource.Page.UncompressedBlockSize = (uint)data.Length;
-            resource.DisableChecksum();
+            using (var stream = OpenCacheReadWrite(location))
+            {
+                var dataSize = (int)(dataStream.Length - dataStream.Position);
+                var data = new byte[dataSize];
+                dataStream.Read(data, 0, dataSize);
+                resource.Page.Index = cache.Add(stream, data, out uint compressedSize);
+                resource.Page.CompressedBlockSize = compressedSize;
+                resource.Page.UncompressedBlockSize = (uint)dataSize;
+                resource.DisableChecksum();
+            }
         }
 
         /// <summary>
@@ -61,7 +67,7 @@ namespace TagTool.Cache.HaloOnline
         /// </summary>
         /// <param name="resource">The resource reference to initialize.</param>
         /// <param name="data">The pre-compressed data to store.</param>
-        public virtual void AddRawResource(PageableResource resource, ReadOnlySpan<byte> data)
+        public virtual void AddRawResource(PageableResource resource, byte[] data)
         {
             if (resource == null)
                 throw new ArgumentNullException("resource");
@@ -92,6 +98,25 @@ namespace TagTool.Cache.HaloOnline
         }
 
         /// <summary>
+        /// Extracts and decompresses the data for a resource from the current cache.
+        /// </summary>
+        /// <param name="inStream"></param>
+        /// <param name="pageable">The resource.</param>
+        /// <param name="outStream">The stream to write the extracted data to.</param>
+        /// <exception cref="System.ArgumentException">Thrown if the output stream is not open for writing.</exception>
+        /// <exception cref="System.InvalidOperationException">Thrown if the file containing the resource has not been loaded.</exception>
+        public void ExtractResource(Stream inStream, PageableResource pageable, Stream outStream)
+        {
+            if (pageable == null)
+                throw new ArgumentNullException("resource");
+            if (!outStream.CanWrite)
+                throw new ArgumentException("The output stream is not open for writing", "outStream");
+
+            var cache = GetResourceCache(pageable, out var location);
+            cache.Decompress(inStream, pageable.Page.Index, pageable.Page.CompressedBlockSize, outStream);
+        }
+
+        /// <summary>
         /// Extracts raw, compressed resource data.
         /// </summary>
         /// <param name="resource">The resource.</param>
@@ -111,17 +136,21 @@ namespace TagTool.Cache.HaloOnline
         /// Compresses and replaces the data for a resource.
         /// </summary>
         /// <param name="resource">The resource whose data should be replaced. On success, the reference will be adjusted to account for the new data.</param>
-        /// <param name="data">The new resource data</param>
+        /// <param name="dataStream">The stream to read the new data from.</param>
         /// <exception cref="System.ArgumentException">Thrown if the input stream is not open for reading.</exception>
-        public virtual void ReplaceResource(PageableResource resource, ReadOnlySpan<byte> data)
+        public virtual void ReplaceResource(PageableResource resource, Stream dataStream)
         {
             if (resource == null)
                 throw new ArgumentNullException("resource");
+            if (!dataStream.CanRead)
+                throw new ArgumentException("The input stream is not open for reading", "dataStream");
 
             var cache = GetResourceCache(resource, out var location);
             using (var stream = OpenCacheReadWrite(location))
             {
-                var dataSize = data.Length;
+                var dataSize = (int)(dataStream.Length - dataStream.Position);
+                var data = new byte[dataSize];
+                dataStream.Read(data, 0, dataSize);
 
                 uint compressedSize;
                 if (resource.Page.Index != -1)
@@ -149,12 +178,14 @@ namespace TagTool.Cache.HaloOnline
                 var context = new ResourceDefinitionSerializationContext(dataWriter, definitionWriter, CacheAddressType.Definition);
                 Serializer.Serialize(context, resourceDefinition);
 
+                var data = dataStream.ToArray();
                 var definitionData = definitionStream.ToArray();
-     
+                dataStream.Position = 0;
+
                 resource.DisableChecksum();
 
                 dataStream.Position = 0;
-                ReplaceResource(resource, data: dataStream.GetBuffer().AsSpan(0, (int)dataStream.Length));
+                ReplaceResource(resource, dataStream);
 
                 // add resource definition and fixups
                 resource.Resource.DefinitionData = definitionData;
@@ -198,9 +229,11 @@ namespace TagTool.Cache.HaloOnline
                 return null;
 
             byte[] result = new byte[pageableResource.Page.UncompressedBlockSize];
+            using (var cacheStream = OpenCacheRead(location))
             using (var dataStream = new MemoryStream(result))
-                ExtractResource(pageableResource, dataStream);
-
+            {
+                ExtractResource(cacheStream, pageableResource, dataStream);
+            }
             return result;
         }
 
@@ -373,8 +406,12 @@ namespace TagTool.Cache.HaloOnline
 
                 var data = dataStream.ToArray();
                 var definitionData = definitionStream.ToArray();
+                dataStream.Position = 0;
+
                 pageableResource.DisableChecksum();
-                AddResource(pageableResource, data);
+
+                dataStream.Position = 0;
+                AddResource(pageableResource, dataStream);
 
                 // add resource definition and fixups
                 pageableResource.Resource.DefinitionData = definitionData;
@@ -443,14 +480,6 @@ namespace TagTool.Cache.HaloOnline
             if (resource.ResourceType != TagResourceTypeGen3.Pathfinding)
                 return null;
             return GetResourceDefinition<StructureBspCacheFileTagResources>(resourceReference);
-        }
-
-        public override bool IsResourceValid(TagResourceReference resourceReference)
-        {
-            if (resourceReference.HaloOnlinePageableResource == null)
-                return false;
-
-            return resourceReference.HaloOnlinePageableResource.Page.Index != -1;
         }
 
         //

@@ -52,7 +52,7 @@ namespace TagTool.Commands.Modding
 			else
 				Console.WriteLine("ModPackage saved to \"" + path + "\".");
 
-            RunMetrics.ReportElapsed();
+			Program.ReportElapsed();
 			return true;
         }
     }

@@ -18,7 +18,6 @@ using TagTool.Commands.Forge;
 using TagTool.Cache.HaloOnline;
 using TagTool.Commands.Scenarios;
 using TagTool.Cache.Monolithic;
-using TagTool.Scripting.CSharp;
 
 namespace TagTool.Commands.Tags
 {
@@ -33,14 +32,11 @@ namespace TagTool.Commands.Tags
 
         public static void Populate(CommandContextStack contextStack, CommandContext context, GameCache cache, GameCache portingCache = null)
         {
-            context.ScriptGlobals.Add(nameof(ScriptEvaluationContext.Cache), cache);
+            context.ScriptGlobals.Add(ExecuteCSharpCommand.GlobalCacheKey, cache);
 
             context.AddCommand(new TestCommand(cache));
             context.AddCommand(new DumpLogCommand());
-            context.AddCommand(new SetLogLevelCommand());
-            context.AddCommand(new SuppressErrorsCommand());
             context.AddCommand(new RunCommands(contextStack));
-            context.AddCommand(new RunCommand(contextStack));
             context.AddCommand(new ClearCommand());
             context.AddCommand(new ExecuteCSharpCommand(contextStack));
             context.AddCommand(new EchoCommand());
@@ -57,7 +53,6 @@ namespace TagTool.Commands.Tags
             context.AddCommand(new ForEachCommand(contextStack, cache));
             context.AddCommand(new ListAllStringsCommand(cache));
             context.AddCommand(new StringIdCommand(cache));
-            context.AddCommand(new DumpStringIdNamespacesCommand(cache));
             context.AddCommand(new GenerateAssemblyPluginsCommand());
             context.AddCommand(new DuplicateTagCommand(cache));
             context.AddCommand(new DeleteTagCommand(cache));
@@ -70,16 +65,14 @@ namespace TagTool.Commands.Tags
             context.AddCommand(new FindValueCommand(cache, null));
             context.AddCommand(new TagDependencyCommand(cache));
             context.AddCommand(new GuessTagDefCommand(cache));
-            context.AddCommand(new DiffTagCommand(cache, cache));
-            context.AddCommand(new ListInvalidBitmapsCommand(cache));
 
             // Halo Online Specific Commands
             if (cache is GameCacheHaloOnlineBase)
             {
                 var hoCache = cache as GameCacheHaloOnlineBase;
                 context.AddCommand(new SaveTagNamesCommand(hoCache));
+                context.AddCommand(new SaveModdedTagsCommand(hoCache));
                 context.AddCommand(new CreateTagCommand(hoCache));
-                context.AddCommand(new ReplaceTagCommand(hoCache));
                 context.AddCommand(new ImportTagCommand(hoCache));
                 context.AddCommand(new ImportLooseTagCommand(hoCache));
                 context.AddCommand(new TagResourceCommand(hoCache));
@@ -92,8 +85,6 @@ namespace TagTool.Commands.Tags
                 context.AddCommand(new ExportTagModCommand(hoCache));
                 context.AddCommand(new GenerateShaderCommand(hoCache));
                 context.AddCommand(new RecompileShadersCommand(hoCache));
-                context.AddCommand(new DefineShaderMacroCommand());
-                context.AddCommand(new UndefineShaderMacroCommand());
                 context.AddCommand(new GenerateRenderMethodCommand(hoCache));
                 //context.AddCommand(new GenerateRmdfCommand(hoCache));
                 context.AddCommand(new GenerateBitmapCommand(hoCache));
@@ -106,7 +97,7 @@ namespace TagTool.Commands.Tags
 
                 context.AddCommand(new ConvertMapVariantCommand(hoCache));
 
-                context.AddCommand(new UpdateMapFilesCommand(hoCache));
+                context.AddCommand(new UpdateMapFilesCommand(cache));
 
                 context.AddCommand(new RescaleGUICommand(cache));
                 context.AddCommand(new RescaleHudTextCommand(cache));
@@ -163,6 +154,7 @@ namespace TagTool.Commands.Tags
 
             // porting related
             context.AddCommand(new UseXSDCommand());
+            context.AddCommand(new UseAudioCacheCommand());
             context.AddCommand(new UseShaderCacheCommand());
             context.AddCommand(new OpenCacheFileCommand(contextStack, cache));
             context.AddCommand(new DiffTagCommand(cache, portingCache ?? cache));

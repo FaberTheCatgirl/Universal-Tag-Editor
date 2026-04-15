@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using TagTool.Cache;
-using TagTool.Common;
-using TagTool.Common.Logging;
+using TagTool.Commands.Common;
 using TagTool.Tags.Definitions;
 using PhysicsModelGen4 = TagTool.Tags.Definitions.Gen4.PhysicsModel;
 
@@ -82,7 +81,7 @@ namespace TagTool.Commands.Porting.Gen4
                 };
                 //fix up phantom type flags
                 if (!Enum.TryParse(gen4phantomtype.Flags.ToString(), out newPhantomType.Flags.HaloOnline))
-                    Log.Warning($"Some phantom type flags failed to convert!");
+                    new TagToolWarning($"Some phantom type flags failed to convert!");
 
                 physicsModel.PhantomTypes.Add(newPhantomType);
             }
@@ -229,7 +228,7 @@ namespace TagTool.Commands.Porting.Gen4
                     ShapeReference = new PhysicsModel.HavokShapeReference
                     {
                         ShapeIndex = gen4sphere.TranslateShape.HavokShapeReferenceStruct1.Shape,
-                        Shapetype = (Havok.BlamShapeType)gen4sphere.TranslateShape.HavokShapeReferenceStruct1.ShapeType
+                        Shapetype = (TagTool.Havok.BlamShapeType)gen4sphere.TranslateShape.HavokShapeReferenceStruct1.ShapeType
                     }
                 };
                 ConvertHavokShape(newSphere, gen4sphere.Base);
@@ -302,7 +301,7 @@ namespace TagTool.Commands.Porting.Gen4
             {
                 physicsModel.PolyhedronPlaneEquations.Add(new PhysicsModel.PolyhedronPlaneEquation
                 {
-                    PlaneEquation = new RealPlane3d
+                    PlaneEquation = new TagTool.Common.RealPlane3d
                     {
                         Normal = gen4peq.PlaneEquations,
                         Distance = gen4peq.HavokWPlaneEquations
@@ -353,7 +352,7 @@ namespace TagTool.Commands.Porting.Gen4
                     Shape = new Havok.HavokShapeReference
                     {
                         Index = gen4listshape.ShapeReference.Shape,
-                        Type = (Havok.BlamShapeType)gen4listshape.ShapeReference.ShapeType
+                        Type = (TagTool.Havok.BlamShapeType)gen4listshape.ShapeReference.ShapeType
                     }
                 });
             }
@@ -419,17 +418,17 @@ namespace TagTool.Commands.Porting.Gen4
                     BUp = gen4ragdoll.ConstraintBodies.BUp,
                     BPosition = gen4ragdoll.ConstraintBodies.BPosition,
                     EdgeIndex = gen4ragdoll.ConstraintBodies.EdgeIndex,
-                    TwistRange = new Bounds<float>
+                    TwistRange = new TagTool.Common.Bounds<float>
                     {
                         Lower = gen4ragdoll.MinTwist,
                         Upper = gen4ragdoll.MaxTwist
                     },
-                    ConeRange = new Bounds<float>
+                    ConeRange = new TagTool.Common.Bounds<float>
                     {
                         Lower = gen4ragdoll.MinCone,
                         Upper = gen4ragdoll.MaxCone
                     },
-                    PlaneRange = new Bounds<float>
+                    PlaneRange = new TagTool.Common.Bounds<float>
                     {
                         Lower = gen4ragdoll.MinPlane,
                         Upper = gen4ragdoll.MaxPlane
@@ -459,7 +458,7 @@ namespace TagTool.Commands.Porting.Gen4
                     BPosition = gen4hinge.ConstraintBodies.BPosition,
                     EdgeIndex = gen4hinge.ConstraintBodies.EdgeIndex,
                     LimitFriction = gen4hinge.LimitFriction,
-                    LimitAngleBounds = new Bounds<float>
+                    LimitAngleBounds = new TagTool.Common.Bounds<float>
                     {
                         Lower = gen4hinge.LimitMinAngle,
                         Upper = gen4hinge.LimitMaxAngle
@@ -469,7 +468,7 @@ namespace TagTool.Commands.Porting.Gen4
             }
 
             if (gen4PhysicsModel.Mopps.Count > 0)
-                Log.Warning("Gen 4 phmo mopp porting not currently implemented!");
+                new TagToolWarning("Gen 4 phmo mopp porting not currently implemented!");
 
             return physicsModel;
         }
@@ -485,7 +484,7 @@ namespace TagTool.Commands.Porting.Gen4
             newShape.Volume = gen4shape.Volume;
             newShape.Mass = gen4shape.Mass;
             newShape.MassDistributionIndex = gen4shape.MassDistributionIndex;
-            newShape.PhantomIndex = gen4shape.Phantom;
+            newShape.PhantomIndex = (sbyte)gen4shape.Phantom;
             newShape.ProxyCollisionGroup = (sbyte)gen4shape.ProxyCollisionGroup;
             return;
         }

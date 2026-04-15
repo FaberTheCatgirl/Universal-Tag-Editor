@@ -20,7 +20,6 @@ namespace TagTool.Commands.Bitmaps
             commandContext.AddCommand(new ExtractBitmapCommand(cache, tag, bitmap));
             commandContext.AddCommand(new ImportBitmapCommand(cache, tag, bitmap));
             commandContext.AddCommand(new ReencodeBitmapCommand(cache, tag, bitmap));
-            commandContext.AddCommand(new GenerateMipmapsCommand(cache, bitmap));
         }
     }
 }

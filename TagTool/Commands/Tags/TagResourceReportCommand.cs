@@ -52,7 +52,7 @@ namespace TagTool.Commands.Tags
             if (args.Count > 0)
             {
                 if (!Cache.TagCache.TryGetCachedTag(args[0], out var tag))
-                    return new TagToolError(CommandError.TagInvalid, args[0]);
+                    new TagToolError(CommandError.TagInvalid);
 
                 tags.Add(tag);
             }
@@ -165,7 +165,7 @@ namespace TagTool.Commands.Tags
         {
             if (tag == null)
                 return;
-            if (!CurrentFlags.HasFlag(ReportFlags.IncludeBaseCache) && tag.IsEmpty())
+            if (CurrentFlags.HasFlag(ReportFlags.IncludeBaseCache) && tag.IsEmpty())
                 return;
 
             if (visitedTags.Add(tag))

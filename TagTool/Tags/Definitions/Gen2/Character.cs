@@ -1,15 +1,13 @@
+using TagTool.Cache;
+using TagTool.Common;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using TagTool.Cache;
-using TagTool.Common;
-using TagTool.Tags.Definitions.Common;
 using static TagTool.Tags.TagFieldFlags;
 
 namespace TagTool.Tags.Definitions.Gen2
 {
-    [TagStructure(Name = "character", Tag = "char", Size = 0xEC, Platform = CachePlatform.Original)]
-    [TagStructure(Name = "character", Tag = "char", Size = 0x104, Platform = CachePlatform.MCC)]
+    [TagStructure(Name = "character", Tag = "char", Size = 0xEC)]
     public class Character : TagStructure
     {
         public CharacterFlagsValue CharacterFlags;
@@ -53,14 +51,7 @@ namespace TagTool.Tags.Definitions.Gen2
         public List<CharacterFiringPatternPropertiesBlock> FiringPatternProperties;
         public List<CharacterGrenadesBlock> GrenadesProperties;
         public List<CharacterVehicleBlock> VehicleProperties;
-
-        [TagField(Platform = CachePlatform.MCC)]
-        public List<NullBlock> FakeEmptyMorphProperties;
-        [TagField(Platform = CachePlatform.MCC)]
-        public List<NullBlock> FakeEmptyEquipmentDefinitions;
-        [TagField(Platform = CachePlatform.MCC)]
-        public List<MetagameBucketGen2> CampaignMetagameBucket;
-
+        
         [Flags]
         public enum CharacterFlagsValue : uint
         {
@@ -82,14 +73,8 @@ namespace TagTool.Tags.Definitions.Gen2
         {
             public GeneralFlagsValue GeneralFlags;
             public TypeValue Type;
-            [TagField(Length = 0x2, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
+            [TagField(Length = 0x2, Flags = TagFieldFlags.Padding)]
             public byte[] Padding;
-
-            [TagField(Platform = CachePlatform.MCC)]
-            public MetagameBucket.CampaignMetagameBucketType MetagameType;  // to-do: versioning
-            [TagField(Platform = CachePlatform.MCC)]
-            public MetagameBucket.CampaignMetagameBucketClass MetagameClassification;   // to-do: versioning
-
             /// <summary>
             /// the inherent scariness of the character
             /// </summary>
@@ -792,7 +777,7 @@ namespace TagTool.Tags.Definitions.Gen2
             /// </summary>
             public Bounds<float> MaxPresearchTime; // seconds
             public float MinCertaintyRadius;
-            public float MaximumUncoverDistance;
+            public float Deprecated;
             /// <summary>
             /// if the min suppressing time expires and the target is outside the min-certainty radius, suppressing fire turns off
             /// </summary>
@@ -1424,13 +1409,6 @@ namespace TagTool.Tags.Definitions.Gen2
                 Huge,
                 Immobile
             }
-        }
-
-        [TagStructure(Size = 0x2)]
-        public class MetagameBucketGen2 : TagStructure
-        {
-            public MetagameBucket.CampaignMetagameBucketType MetagameType;
-            public MetagameBucket.CampaignMetagameBucketClass MetagameClassification;
         }
     }
 }

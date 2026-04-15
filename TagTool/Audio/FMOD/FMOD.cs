@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-namespace TagTool.Audio.FMOD
+namespace TagTool.Audio
 {
     public unsafe static class FMOD
     {

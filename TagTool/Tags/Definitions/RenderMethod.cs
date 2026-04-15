@@ -177,11 +177,13 @@ namespace TagTool.Tags.Definitions
                 public PackedSamplerAddressMode SamplerAddressMode;
 
                 [TagField(MinVersion = CacheVersion.Halo3Beta, MaxVersion = CacheVersion.Halo3Retail)]
+                public SamplerFilterMode FilterModeH3;
                 [TagField(MinVersion = CacheVersion.HaloOnlineED, MaxVersion = CacheVersion.HaloOnline700123)]
                 public SamplerFilterMode FilterMode;
                 [TagField(MinVersion = CacheVersion.Halo3ODST, MaxVersion = CacheVersion.Halo3ODST)]
+                public PackedSamplerFilterMode FilterModeODST; // not sure if the anisotropy is used
                 [TagField(MinVersion = CacheVersion.HaloReach)]
-                public PackedSamplerFilterMode FilterModePacked; // not sure if the anisotropy is used
+                public PackedSamplerFilterMode FilterModeReach;
 
                 [TagField(Platform = CachePlatform.MCC, MaxVersion = CacheVersion.Halo3Retail)]
                 public byte ComparisonFunction;
@@ -379,14 +381,6 @@ namespace TagTool.Tags.Definitions
                 public short RegisterIndex;
                 public byte FunctionIndex;
                 public byte SourceIndex;
-            }
-
-            public TextureConstant TryGetTextureConstantFromQueryableProperty(int queryIndex)
-            {
-                if (queryIndex >= 0 && queryIndex < 8 &&
-                    QueryableProperties[queryIndex] != -1)
-                    return TextureConstants[QueryableProperties[queryIndex]];
-                return null;
             }
         }
 

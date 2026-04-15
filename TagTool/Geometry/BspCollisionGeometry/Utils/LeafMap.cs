@@ -5,10 +5,6 @@ using TagTool.Commands.Common;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TagTool.Common.Logging;
-
-// Suppress warning for lowercase class names
-#pragma warning disable CS8981, IDE1006
 
 namespace TagTool.Geometry.BspCollisionGeometry.Utils
 {
@@ -84,7 +80,7 @@ namespace TagTool.Geometry.BspCollisionGeometry.Utils
                             if (bsp_leaf.polygon_counts[1, 0] > 10)
                                 continue;
 
-                            Log.Warning("Fixing phantom leaf!");
+                            new TagToolWarning("Fixing phantom leaf!");
                             int new_leaf_index = -1;
                             if (reconstruct_bsp_leaf(bsp_leaf, ref new_leaf_index))
                             {
@@ -105,7 +101,7 @@ namespace TagTool.Geometry.BspCollisionGeometry.Utils
                         }
                         else if (leaf_index >= leafybsp.bsp_leaf_count)
                         {
-                            Log.Warning("Solid leaf didn't have any floating surfaces!");
+                            new TagToolWarning("Solid leaf didn't have any floating surfaces!");
                         }
                         else
                         {

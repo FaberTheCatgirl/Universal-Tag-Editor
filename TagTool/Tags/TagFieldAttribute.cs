@@ -122,9 +122,7 @@ namespace TagTool.Tags
         Runtime = 1 << 4,
         Fraction = 1 << 6,
         Resource = 1 << 7,
-        GlobalMaterial = 1 << 8,
-        DebugFill = 1 << 9,
-        Hidden = 1 << 10
+        GlobalMaterial = 1 << 8
     }
 
     public enum TagFieldCompression

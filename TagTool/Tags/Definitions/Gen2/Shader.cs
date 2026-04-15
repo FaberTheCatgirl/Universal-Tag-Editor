@@ -136,8 +136,8 @@ namespace TagTool.Tags.Definitions.Gen2
             public List<Pixel32Block> PixelConstants;
             public List<RealVector4dBlock> VertexConstants;
             public List<ShaderPostprocessLevelOfDetailNewBlock> LevelsOfDetail;
-            public List<TagBlockIndexGen2Block> Layers;
-            public List<TagBlockIndexGen2Block> Passes;
+            public List<TagBlockIndexBlock> Layers;
+            public List<TagBlockIndexBlock1> Passes;
             public List<ShaderPostprocessImplementationNewBlock> Implementations;
             public List<ShaderPostprocessOverlayNewBlock> Overlays;
             public List<ShaderPostprocessOverlayReferenceNewBlock> OverlayReferences;
@@ -174,17 +174,77 @@ namespace TagTool.Tags.Definitions.Gen2
             public class ShaderPostprocessLevelOfDetailNewBlock : TagStructure
             {
                 public int AvailableLayerFlags;
-                public TagBlockIndexGen2 Layers;
+                public TagBlockIndexStructBlock Layers;
+                
+                [TagStructure(Size = 0x2)]
+                public class TagBlockIndexStructBlock : TagStructure
+                {
+                    public short BlockIndexData;
+                }
+            }
+            
+            [TagStructure(Size = 0x2)]
+            public class TagBlockIndexBlock : TagStructure
+            {
+                public TagBlockIndexStructBlock Indices;
+                
+                [TagStructure(Size = 0x2)]
+                public class TagBlockIndexStructBlock : TagStructure
+                {
+                    public short BlockIndexData;
+                }
+            }
+            
+            [TagStructure(Size = 0x2)]
+            public class TagBlockIndexBlock1 : TagStructure
+            {
+                public TagBlockIndexStructBlock Indices;
+                
+                [TagStructure(Size = 0x2)]
+                public class TagBlockIndexStructBlock : TagStructure
+                {
+                    public short BlockIndexData;
+                }
             }
             
             [TagStructure(Size = 0xA)]
             public class ShaderPostprocessImplementationNewBlock : TagStructure
             {
-                public TagBlockIndexGen2 BitmapTransforms;
-                public TagBlockIndexGen2 RenderStates;
-                public TagBlockIndexGen2 TextureStates;
-                public TagBlockIndexGen2 PixelConstants;
-                public TagBlockIndexGen2 VertexConstants;
+                public TagBlockIndexStructBlock BitmapTransforms;
+                public TagBlockIndexStructBlock1 RenderStates;
+                public TagBlockIndexStructBlock2 TextureStates;
+                public TagBlockIndexStructBlock3 PixelConstants;
+                public TagBlockIndexStructBlock4 VertexConstants;
+                
+                [TagStructure(Size = 0x2)]
+                public class TagBlockIndexStructBlock : TagStructure
+                {
+                    public short BlockIndexData;
+                }
+                
+                [TagStructure(Size = 0x2)]
+                public class TagBlockIndexStructBlock1 : TagStructure
+                {
+                    public short BlockIndexData;
+                }
+                
+                [TagStructure(Size = 0x2)]
+                public class TagBlockIndexStructBlock2 : TagStructure
+                {
+                    public short BlockIndexData;
+                }
+                
+                [TagStructure(Size = 0x2)]
+                public class TagBlockIndexStructBlock3 : TagStructure
+                {
+                    public short BlockIndexData;
+                }
+                
+                [TagStructure(Size = 0x2)]
+                public class TagBlockIndexStructBlock4 : TagStructure
+                {
+                    public short BlockIndexData;
+                }
             }
             
             [TagStructure(Size = 0x14)]
@@ -224,14 +284,19 @@ namespace TagTool.Tags.Definitions.Gen2
             [TagStructure(Size = 0x2)]
             public class ShaderPostprocessAnimatedParameterNewBlock : TagStructure
             {
-                public TagBlockIndexGen2 OverlayReferences;
+                public TagBlockIndexStructBlock OverlayReferences;
+                
+                [TagStructure(Size = 0x2)]
+                public class TagBlockIndexStructBlock : TagStructure
+                {
+                    public short BlockIndexData;
+                }
             }
             
             [TagStructure(Size = 0x4)]
             public class ShaderPostprocessAnimatedParameterReferenceNewBlock : TagStructure
             {
-                public sbyte Unknown0;
-                public sbyte Unknown1;
+                public short Unknown;
                 public sbyte Unknown2;
                 public sbyte ParameterIndex;
             }
@@ -276,7 +341,13 @@ namespace TagTool.Tags.Definitions.Gen2
                 [TagStructure(Size = 0x2)]
                 public class ShaderPostprocessLayerBlock : TagStructure
                 {
-                    public TagBlockIndexGen2 Passes;
+                    public TagBlockIndexStructBlock Passes;
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock : TagStructure
+                    {
+                        public short BlockIndexData;
+                    }
                 }
                 
                 [TagStructure(Size = 0xA)]
@@ -284,7 +355,13 @@ namespace TagTool.Tags.Definitions.Gen2
                 {
                     [TagField(ValidTags = new [] { "spas" })]
                     public CachedTag ShaderPass;
-                    public TagBlockIndexGen2 Implementations;
+                    public TagBlockIndexStructBlock Implementations;
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock : TagStructure
+                    {
+                        public short BlockIndexData;
+                    }
                 }
                 
                 [TagStructure(Size = 0x2C)]
@@ -292,37 +369,169 @@ namespace TagTool.Tags.Definitions.Gen2
                 {
                     public ShaderGpuStateReferenceStructBlock GpuConstantState;
                     public ShaderGpuStateReferenceStructBlock1 GpuVolatileState;
-                    public TagBlockIndexGen2 BitmapParameters;
-                    public TagBlockIndexGen2 BitmapTransforms;
-                    public TagBlockIndexGen2 ValueParameters;
-                    public TagBlockIndexGen2 ColorParameters;
-                    public TagBlockIndexGen2 BitmapTransformOverlays;
-                    public TagBlockIndexGen2 ValueOverlays;
-                    public TagBlockIndexGen2 ColorOverlays;
-                    public TagBlockIndexGen2 VertexShaderConstants;
+                    public TagBlockIndexStructBlock BitmapParameters;
+                    public TagBlockIndexStructBlock1 BitmapTransforms;
+                    public TagBlockIndexStructBlock2 ValueParameters;
+                    public TagBlockIndexStructBlock3 ColorParameters;
+                    public TagBlockIndexStructBlock4 BitmapTransformOverlays;
+                    public TagBlockIndexStructBlock5 ValueOverlays;
+                    public TagBlockIndexStructBlock6 ColorOverlays;
+                    public TagBlockIndexStructBlock7 VertexShaderConstants;
                     
                     [TagStructure(Size = 0xE)]
                     public class ShaderGpuStateReferenceStructBlock : TagStructure
                     {
-                        public TagBlockIndexGen2 RenderStates;
-                        public TagBlockIndexGen2 TextureStageStates;
-                        public TagBlockIndexGen2 RenderStateParameters;
-                        public TagBlockIndexGen2 TextureStageParameters;
-                        public TagBlockIndexGen2 Textures;
-                        public TagBlockIndexGen2 VnConstants;
-                        public TagBlockIndexGen2 CnConstants;
+                        public TagBlockIndexStructBlock RenderStates;
+                        public TagBlockIndexStructBlock1 TextureStageStates;
+                        public TagBlockIndexStructBlock2 RenderStateParameters;
+                        public TagBlockIndexStructBlock3 TextureStageParameters;
+                        public TagBlockIndexStructBlock4 Textures;
+                        public TagBlockIndexStructBlock5 VnConstants;
+                        public TagBlockIndexStructBlock6 CnConstants;
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock1 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock2 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock3 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock4 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock5 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock6 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
                     }
                     
                     [TagStructure(Size = 0xE)]
                     public class ShaderGpuStateReferenceStructBlock1 : TagStructure
                     {
-                        public TagBlockIndexGen2 RenderStates;
-                        public TagBlockIndexGen2 TextureStageStates;
-                        public TagBlockIndexGen2 RenderStateParameters;
-                        public TagBlockIndexGen2 TextureStageParameters;
-                        public TagBlockIndexGen2 Textures;
-                        public TagBlockIndexGen2 VnConstants;
-                        public TagBlockIndexGen2 CnConstants;
+                        public TagBlockIndexStructBlock RenderStates;
+                        public TagBlockIndexStructBlock1 TextureStageStates;
+                        public TagBlockIndexStructBlock2 RenderStateParameters;
+                        public TagBlockIndexStructBlock3 TextureStageParameters;
+                        public TagBlockIndexStructBlock4 Textures;
+                        public TagBlockIndexStructBlock5 VnConstants;
+                        public TagBlockIndexStructBlock6 CnConstants;
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock1 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock2 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock3 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock4 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock5 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                        
+                        [TagStructure(Size = 0x2)]
+                        public class TagBlockIndexStructBlock6 : TagStructure
+                        {
+                            public short BlockIndexData;
+                        }
+                    }
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock : TagStructure
+                    {
+                        public short BlockIndexData;
+                    }
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock1 : TagStructure
+                    {
+                        public short BlockIndexData;
+                    }
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock2 : TagStructure
+                    {
+                        public short BlockIndexData;
+                    }
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock3 : TagStructure
+                    {
+                        public short BlockIndexData;
+                    }
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock4 : TagStructure
+                    {
+                        public short BlockIndexData;
+                    }
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock5 : TagStructure
+                    {
+                        public short BlockIndexData;
+                    }
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock6 : TagStructure
+                    {
+                        public short BlockIndexData;
+                    }
+                    
+                    [TagStructure(Size = 0x2)]
+                    public class TagBlockIndexStructBlock7 : TagStructure
+                    {
+                        public short BlockIndexData;
                     }
                 }
                 
@@ -556,8 +765,7 @@ namespace TagTool.Tags.Definitions.Gen2
             _12Size,
             _14Size,
             Never,
-            Cinematic,
-            Lowest
+            Cinematic
         }
         
         public enum SpecularTypeValue : short

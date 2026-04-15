@@ -13,7 +13,6 @@ using TagTool.Common;
 using TagTool.IO;
 using TagTool.Tags.Definitions;
 using TagTool.Commands.Tags;
-using TagTool.Common.Logging;
 
 namespace TagTool.Geometry
 {
@@ -133,7 +132,7 @@ namespace TagTool.Geometry
                     success = ExportCollada(modelFile);
                     break;
                 default:
-                    Log.Error($"Unsupported export format \"{exportFileFormat}\"");
+                    new TagToolError(CommandError.ArgInvalid, $"Unsupported export format \"{exportFileFormat}\"");
                     return success;
             }
 
@@ -720,7 +719,7 @@ namespace TagTool.Geometry
                         baseMapTexture.SamplerAddressMode.AddressV.ToString() == "Clamp" ? TextureWrapMode.Clamp :
                         baseMapTexture.SamplerAddressMode.AddressV.ToString() == "Mirror" ? TextureWrapMode.Mirror :
                         TextureWrapMode.Wrap;
-                    material.AddMaterialTexture(baseMapTS);
+                    material.AddMaterialTexture(ref baseMapTS);
                 }
 
                 Scene.Materials.Add(material);
@@ -797,9 +796,9 @@ namespace TagTool.Geometry
                 bone.Name = CacheContext.StringTable.GetString(node.Name);
                 
                 bone.OffsetMatrix = new Matrix4x4(
-                    node.Inverse.Forward.I, node.Inverse.Left.I, node.Inverse.Up.I, node.Inverse.Position.X,
-                    node.Inverse.Forward.J, node.Inverse.Left.J, node.Inverse.Up.J, node.Inverse.Position.Y,
-                    node.Inverse.Forward.K, node.Inverse.Left.K, node.Inverse.Up.K, node.Inverse.Position.Z,
+                    node.InverseForward.I, node.InverseLeft.I, node.InverseUp.I, node.InversePosition.X,
+                    node.InverseForward.J, node.InverseLeft.J, node.InverseUp.J, node.InversePosition.Y,
+                    node.InverseForward.K, node.InverseLeft.K, node.InverseUp.K, node.InversePosition.Z,
                     0, 0, 0, 1);
 
                 mesh.Bones.Add(bone);
@@ -813,15 +812,21 @@ namespace TagTool.Geometry
                 // Flip the model right side up.
                 mesh.Vertices.Add(new Vector3D(vertex.Position.X, vertex.Position.Y, vertex.Position.Z)); //vertex.Position.Z, -vertex.Position.Y
 
-                mesh.Normals.Add(vertex.Normal);
+                if (vertex.Normal != null)
+                    mesh.Normals.Add(vertex.Normal);
 
-                // Y didn't like being shifted before decompression, so do it here.
-                mesh.TextureCoordinateChannels[textureCoordinateIndex].Add(
-                    new Vector3D(vertex.TexCoords.X, 1 - vertex.TexCoords.Y, vertex.TexCoords.Z));
+                if (vertex.TexCoords != null)
+                {
+                    // Y didn't like being shifted before decompression, so do it here.
+                    mesh.TextureCoordinateChannels[textureCoordinateIndex].Add(
+                        new Vector3D(vertex.TexCoords.X, 1 - vertex.TexCoords.Y, vertex.TexCoords.Z));
+                }
 
-          
-                mesh.Tangents.Add(vertex.Tangents);
-                mesh.BiTangents.Add(vertex.Binormals);
+                if (vertex.Tangents != null)
+                    mesh.Tangents.Add(vertex.Tangents);
+
+                if (vertex.Binormals != null)
+                    mesh.BiTangents.Add(vertex.Binormals);
 
                 if (vertex.Indices != null)
                 {

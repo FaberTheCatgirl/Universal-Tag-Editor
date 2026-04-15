@@ -5,15 +5,12 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using TagTool.Commands.Common;
-using TagTool.Porting;
 
 namespace TagTool.Commands.Porting
 {
     public class SetPortingOptionCommand : Command
     {
-        public PortingContext PortContext;
-
-        public SetPortingOptionCommand(PortingContext portContext)
+        public SetPortingOptionCommand()
                : base(true,
 
                      "SetPortingOption",
@@ -24,7 +21,7 @@ namespace TagTool.Commands.Porting
                      BuildHelpMessage())
 
         {
-            PortContext = portContext;
+            PortingOptions.Current = new PortingOptions();
         }
 
         public override object Execute(List<string> args)
@@ -54,8 +51,8 @@ namespace TagTool.Commands.Porting
                 return new TagToolError(CommandError.ArgInvalid, $"Invalid value given for porting option: '{args[0]}', value: '{args[1]}'");
             }
 
-            var oldValue = field.GetValue(PortContext.Options);
-            field.SetValue(PortContext.Options, value);
+            var oldValue = field.GetValue(PortingOptions.Current);
+            field.SetValue(PortingOptions.Current, value);
 
             Console.WriteLine($"{oldValue} -> {value}");
             return true;

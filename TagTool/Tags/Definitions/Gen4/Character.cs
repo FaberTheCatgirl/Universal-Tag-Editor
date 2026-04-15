@@ -1,4 +1,3 @@
-using TagTool.Ai;
 using TagTool.Cache;
 using TagTool.Common;
 using System;
@@ -40,7 +39,7 @@ namespace TagTool.Tags.Definitions.Gen4
         public List<CharacterMovementSetBlock> MovementSets;
         public List<CharacterFlockingBlock> FlockingProperties;
         public List<CharacterSwarmBlock> SwarmProperties;
-        public List<CharacterFiringPointEvaluator> FiringPointEvaluatorProperties;
+        public List<CharacterFiringPointEvaluatorBlockStruct> FiringPointEvaluatorProperties;
         public List<CharacterReadyBlock> ReadyProperties;
         public List<CharacterEngageBlock> EngageProperties;
         public List<CharacterChargeBlock> ChargeProperties;
@@ -64,7 +63,7 @@ namespace TagTool.Tags.Definitions.Gen4
         public List<CharacterFiringPatternPropertiesBlock> ExtremeRangeFiringPatternProperties;
         public List<CharacterGrenadesBlock> GrenadesProperties;
         public List<CharacterVehicleBlock> VehicleProperties;
-        public List<CharacterFlyingMovementBlock> FlyingMovementProperties;
+        public List<CharacterFlyingMovementBlockStruct> FlyingMovementProperties;
         public List<CharacterMorphBlock> MorphProperties;
         public List<CharacterEquipmentBlock> EquipmentDefinitions;
         public List<CharacterStimuliResponseBlock> StimuliResponses;
@@ -310,23 +309,23 @@ namespace TagTool.Tags.Definitions.Gen4
                 public byte[] Padding;
                 // What should be the situational danger level for the prop class selected above
                 public float SituationalDanger;
-
+                
                 public enum PropClassEnum : short
                 {
-                    None, // actor has no targets whatsoever
-                    DeadEnemy, // my only target is a dead enemy
-                    NonAttackingEnemy, // I am debilitated and the enemy is not attacking
-                    DisregardedOrphan, // did not find my target and gave up searching
-                    InspectedOrphan, // checked last known position and didn't find target, still searching
-                    UninspectedOrphan, // can't see target, but have a good idea where they may be
-                    CertainOrphan, // can't see target, but know exactly where they are
-                    VisibleEnemy, // I can see the target
-                    NearbyEnemy, // I can see the target, and it's close
-                    PotentiallyDangerousEnemy, // target is near and facing me
-                    DangerousEnemy, // target is facing my way and fighting
-                    AttackingEnemy, // target is aiming at me and shooting at me
-                    VeryCloseEnemy, // enemy is really close
-                    DamagingEnemy // enemy is damaging me
+                    NoneActorHasNoTargetsWhatsoever,
+                    DeadEnemyMyOnlyTargetIsADeadEnemy,
+                    NonAttackingEnemyIAmDebilitatedAndTheEnemyIsNotAttackingMe,
+                    DisregardedOrphanDidNotFindMyTargetAndGaveUpSearching,
+                    InspectedOrphanCheckedLastKnowPositionAndDidnTFindTargetStillSearching,
+                    UninspectedOrphanCanTSeeTargetButHaveAGoodIdeaWhereTheyMayBe,
+                    CertainOrphanCanTSeeTargetButKnowExactlyWhereTheyAre,
+                    VisibleEnemyICanSeeTheTarget,
+                    NearbyEnemyICanSeeTheTargetAndItSClose,
+                    PotentiallyDangerousEnemyTargetIsNearAndIsFacingMe,
+                    DangerousEnemyTargetIsFacingMyWayAndFighting,
+                    AttackingEnemyTargetIsAimingAtMeAndShootingMe,
+                    VeryCloseEnemyEnemyIsReallyClose,
+                    DamagingEnemyEnemyIsDamagingMe
                 }
             }
         }
@@ -591,13 +590,13 @@ namespace TagTool.Tags.Definitions.Gen4
             public float ArmorLockCooldown;
             public float DiveGrenadeChance;
             public float BraceGrenadeChance;
-            public AiSize ObstacleLeapMinSize;
-            public AiSize ObstacleLeapMaxSize;
-            public AiSize ObstacleIgnoreSize;
-            public AiSize ObstacleSmashableSize;
+            public ObstacleIgnoreEnum ObstacleLeapMinSize;
+            public ObstacleIgnoreEnum ObstacleLeapMaxSize;
+            public ObstacleIgnoreEnum ObstacleIgnoreSize;
+            public ObstacleIgnoreEnum ObstacleSmashableSize;
             [TagField(Length = 0x2, Flags = TagFieldFlags.Padding)]
             public byte[] Padding;
-            public CharacterJumpHeight JumpHeight;
+            public GlobalAiJumpHeightEnum JumpHeight;
             // .How high can a crate be for this unit to leap it.
             public float MaximumLeapHeight; // wus
             // How close to the obstacle should the actor be before leaping 1- too close, 0- as soon as he becomes aware of it
@@ -605,7 +604,7 @@ namespace TagTool.Tags.Definitions.Gen4
             // The maximum distance penalty applied to an avoidance volume search path if we're facing away from the path. 1000 wu
             // good for space, 5 wu good for ground.
             public float AvoidanceVolumeTurnPenaltyDistance; // wus
-            public CharacterMovementHintFlags MovementHints;
+            public MovementHintEnum MovementHints;
             // We will move at least this long in a single direction when starting movement
             public int MinimumMovementTicks; // ticks
             // If the character changes movement direction by more than this angle, he will have to move for at least minimum
@@ -688,6 +687,50 @@ namespace TagTool.Tags.Definitions.Gen4
                 NoOverrideWhenFiring = 1 << 19,
                 NoStowDuringIdleActivities = 1 << 20,
                 FlipAnyVehicle = 1 << 21
+            }
+            
+            public enum ObstacleIgnoreEnum : short
+            {
+                None,
+                Tiny,
+                Small,
+                Medium,
+                Large,
+                Huge,
+                Immobile
+            }
+            
+            public enum GlobalAiJumpHeightEnum : short
+            {
+                None,
+                Down,
+                Step,
+                Crouch,
+                Stand,
+                Storey,
+                Tower,
+                Infinite
+            }
+            
+            [Flags]
+            public enum MovementHintEnum : uint
+            {
+                VaultStep = 1 << 0,
+                VaultCrouch = 1 << 1,
+                Unused0 = 1 << 2,
+                Unused1 = 1 << 3,
+                Unused2 = 1 << 4,
+                MountStep = 1 << 5,
+                MountCrouch = 1 << 6,
+                MountStand = 1 << 7,
+                Unused3 = 1 << 8,
+                Unused4 = 1 << 9,
+                Unused5 = 1 << 10,
+                HoistCrouch = 1 << 11,
+                HoistStand = 1 << 12,
+                Unused6 = 1 << 13,
+                Unused7 = 1 << 14,
+                Unused8 = 1 << 15
             }
             
             [TagStructure(Size = 0x8)]
@@ -795,11 +838,23 @@ namespace TagTool.Tags.Definitions.Gen4
             public float DesiredThrottle; // [0,1]
             public float AccelerationTime; // seconds
             // Defines throttle as a function of time from start of style application
-            public TagFunction AccelerationFunction;
+            public ScalarFunctionNamedStruct AccelerationFunction;
             public float DecelerationDistance; // wu
             // Defines throttle as a function of distance from the goal
-            public TagFunction DecelerationFunction;
+            public ScalarFunctionNamedStruct DecelerationFunction;
             public StringId Stance;
+            
+            [TagStructure(Size = 0x14)]
+            public class ScalarFunctionNamedStruct : TagStructure
+            {
+                public MappingFunction Function;
+                
+                [TagStructure(Size = 0x14)]
+                public class MappingFunction : TagStructure
+                {
+                    public byte[] Data;
+                }
+            }
         }
         
         [TagStructure(Size = 0x10)]
@@ -870,7 +925,7 @@ namespace TagTool.Tags.Definitions.Gen4
         }
         
         [TagStructure(Size = 0x10)]
-        public class CharacterFiringPointEvaluator : TagStructure
+        public class CharacterFiringPointEvaluatorBlockStruct : TagStructure
         {
             public EvaluationModes Mode;
             public List<EvaluatorDefinitionBlockStruct> Evaluators;
@@ -1821,7 +1876,7 @@ namespace TagTool.Tags.Definitions.Gen4
             public float TurtlingMinTime; // seconds
             // The turtled state times out after the given number of seconds
             public float TurtlingTimeout; // seconds
-            public AiSize ObstacleIgnoreSize;
+            public ObstacleIgnoreEnum ObstacleIgnoreSize;
             [TagField(Length = 0x2, Flags = TagFieldFlags.Padding)]
             public byte[] Padding;
             // max number of this type of vehicle in a task who can vehicle charge at once
@@ -1843,10 +1898,21 @@ namespace TagTool.Tags.Definitions.Gen4
                 DonTFaceTarget = 1 << 8,
                 OverrideAimingLimits = 1 << 9
             }
+            
+            public enum ObstacleIgnoreEnum : short
+            {
+                None,
+                Tiny,
+                Small,
+                Medium,
+                Large,
+                Huge,
+                Immobile
+            }
         }
         
         [TagStructure(Size = 0xE0)]
-        public class CharacterFlyingMovementBlock : TagStructure
+        public class CharacterFlyingMovementBlockStruct : TagStructure
         {
             [TagField(ValidTags = new [] { "unit" })]
             public CachedTag Vehicle;

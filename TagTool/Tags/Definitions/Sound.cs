@@ -64,14 +64,8 @@ namespace TagTool.Tags.Definitions
         [TagField(BuildType = CacheBuildType.TagsBuild)]
         public Promotion Promotion;
 
-        [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
-        [TagField(Gen = CacheGeneration.HaloOnline)]
-        public int MaximumPlayTime;
-
-        [TagField(Gen = CacheGeneration.HaloOnline)]
-        public uint TotalSampleCount;
-        [TagField(Gen = CacheGeneration.HaloOnline)]
-        public uint Unknown11;
+        [TagField(Length = 4, Flags = TagFieldFlags.Padding, Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
+        public byte[] Padding2;
 
         [TagField(Gen = CacheGeneration.HaloOnline)]
         [TagField(BuildType = CacheBuildType.TagsBuild)]
@@ -125,10 +119,7 @@ namespace TagTool.Tags.Definitions
             InstantSoundPropagation = 1 << 9,
             FakeSpatializationWithDistance = 1 << 10,
             PlayPermutationsInOrder = 1 << 11,
-            Bit12 = 1 << 12,
-            Invalid = 1 << 13,
-            Bit14 = 1 << 14,
-            Bit15 = 1 << 15
+            Bit12 = 1 << 12
         }
 
         [Flags]
@@ -166,16 +157,16 @@ namespace TagTool.Tags.Definitions
             ProcessedLanguageTimes = 1 << 0
         }
 
-        [TagStructure(Size = 0x9, MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC)]
+        [TagStructure(Size = 0x9, MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista)]
         [TagStructure(Size = 0x15, MinVersion = CacheVersion.Halo3Beta, MaxVersion = CacheVersion.HaloOnline700123)]
         [TagStructure(Size = 0x19, MinVersion = CacheVersion.HaloReach)]
         public class SoundCacheFileGestaltReference : TagStructure
 		{
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC)]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista)]
             public SampleRate SampleRate;
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC)]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista)]
             public Compression Compression;
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC)]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista)]
             public Gen2Encoding Encoding;
 
             // Halo 3 Section
@@ -206,19 +197,19 @@ namespace TagTool.Tags.Definitions
 
             //Halo 2 Section
 
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC, Upgrade = nameof(CustomPlaybackIndex))]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista, Upgrade = nameof(CustomPlaybackIndex))]
             public short PlaybackParameterIndexOld;
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC, Upgrade = nameof(PitchRangeIndex))]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista, Upgrade = nameof(PitchRangeIndex))]
             public short PitchRangeIndexOld;
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC, Upgrade = nameof(PitchRangeCount))]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista, Upgrade = nameof(PitchRangeCount))]
             public sbyte PitchRangeCountOld;
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC, Upgrade = nameof(ScaleIndex))]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista, Upgrade = nameof(ScaleIndex))]
             public sbyte ScaleIndexOld;
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC, Upgrade = nameof(PromotionIndex))]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista, Upgrade = nameof(PromotionIndex))]
             public sbyte PromotionIndexOld;
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC, Upgrade = nameof(CustomPlaybackIndex))]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista, Upgrade = nameof(CustomPlaybackIndex))]
             public sbyte CustomPlaybackIndexOld;
-            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2PC, Upgrade = nameof(ExtraInfoIndex))]
+            [TagField(MinVersion = CacheVersion.Halo2Xbox, MaxVersion = CacheVersion.Halo2Vista, Upgrade = nameof(ExtraInfoIndex))]
             public short ExtraInfoIndexOld;
 
 

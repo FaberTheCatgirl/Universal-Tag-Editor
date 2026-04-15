@@ -5,7 +5,6 @@ using TagTool.Common;
 using TagTool.Commands.Common;
 using TagTool.Tags.Definitions;
 using System.Linq;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.Forge
 {
@@ -23,18 +22,18 @@ namespace TagTool.Commands.Forge
                 "AddForgeCategory",
                 "Add a custom category to host Forge objects.",
 
-                "AddForgeCategory <name> <parent category> [desc]",
+                "AddForgeCategory <name> <parent category> [description]",
 
                 "Adds a custom category to host Forge objects."
                 + "\nCategory names containing spaces must be in quotes."
-                + "\nParent category can be an index (-1 = root, * = last), or an exact name.")
+                + "\nParent category must be either the block index or exact name of the parent category. (-1 for none)")
         {
             Cache = cache;
         }
 
         public override object Execute(List<string> args)
         {
-            using (var cacheStream = Cache.OpenCacheReadWrite())
+            using (var cacheStream = Cache.OpenCacheRead())
             {
                 if (args.Count > 3 || args.Count < 2)
                     return new TagToolError(CommandError.ArgCount);
@@ -47,9 +46,6 @@ namespace TagTool.Commands.Forge
 
                 if (!short.TryParse(args[1], out ParentIndex))
                 {
-                    if (args[1] == "*" || args[1].ToLower() == "last")
-                        ParentIndex = (short)(ForgeGlobals.PaletteCategories.Count - 1);
-
                     foreach (var cat in ForgeGlobals.PaletteCategories)
                     {
                         if (cat.Name.ToLower() == args[1].ToLower())
@@ -65,8 +61,7 @@ namespace TagTool.Commands.Forge
                         case 1:
                             break;
                         default:
-                            Log.Warning("Multiple categories which this name were found. Parent category will be the last encountered.");
-                            return true;
+                            return new TagToolWarning("Multiple categories which this name were found. Parent category will be the last encountered.");
                     }
 
                     ParentIndex = nameIndices.Last();
@@ -74,27 +69,23 @@ namespace TagTool.Commands.Forge
                 else if (ParentIndex >= ForgeGlobals.PaletteCategories.Count || ParentIndex < -1)
                     return new TagToolError(CommandError.CustomError, $"Parent category index must be less than the current category count of {ForgeGlobals.PaletteCategories.Count}.");
 
-                short descriptionIndex = -1;
-                if (args.Count == 3 && args[2].ToLower().StartsWith("desc"))
+                if (args.Count == 3)
                 {
-                    Console.WriteLine("Enter your category description:");
-                    CategoryDescription = Console.ReadLine();
+                    CategoryDescription = args[2];
 
-                    if (!string.IsNullOrWhiteSpace(CategoryDescription))
+                    if (string.IsNullOrEmpty(CategoryDescription))
                     {
                         ForgeGlobals.Descriptions.Add(new ForgeGlobalsDefinition.Description()
                         {
                             Text = CategoryDescription
                         });
-
-                        descriptionIndex = (short)(ForgeGlobals.Descriptions.Count - 1);
                     }
                 }
 
                 ForgeGlobals.PaletteCategories.Add(new ForgeGlobalsDefinition.PaletteCategory()
                 {
                     Name = CategoryName,
-                    DescriptionIndex = descriptionIndex,
+                    DescriptionIndex = (short)(string.IsNullOrEmpty(CategoryDescription) ? (ForgeGlobals.Descriptions.Count - 1) : -1),
                     ParentCategoryIndex = ParentIndex
                 });
 

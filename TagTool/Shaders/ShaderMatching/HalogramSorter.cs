@@ -9,8 +9,6 @@ namespace TagTool.Shaders.ShaderMatching
 
     public class HalogramSorter : SortingInterface
     {
-        public static readonly HalogramSorter Instance = new();
-
         // these private lists define the order of the types and options in a shader. The matcher will use these when no perfect match exists. 
         // TODO: revise these
 

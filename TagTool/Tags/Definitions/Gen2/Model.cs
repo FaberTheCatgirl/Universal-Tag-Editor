@@ -605,8 +605,7 @@ namespace TagTool.Tags.Definitions.Gen2
                         FiresUnderThreshold = 1 << 21,
                         TriggersSpecialDeath = 1 << 22,
                         OnlyOnSpecialDeath = 1 << 23,
-                        OnlyNotOnSpecialDeath = 1 << 24,
-                        ForcesObjectToLoseVitality = 1 << 25,
+                        OnlyNotOnSpecialDeath = 1 << 24
                     }
                     
                     [TagStructure(Size = 0x8)]

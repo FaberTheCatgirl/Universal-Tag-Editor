@@ -9,7 +9,6 @@ using TagTool.Commands.Common;
 using TagTool.Tags;
 using TagTool.Cache.HaloOnline;
 using static TagTool.Tags.Definitions.RenderMethod.RenderMethodPostprocessBlock.TextureConstant;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.Editing
 {
@@ -447,7 +446,7 @@ namespace TagTool.Commands.Editing
 
                 var blamType = Activator.CreateInstance(type) as IBlamType;
                 if (!blamType.TryParse(cache, args, out blamType, out string error))
-                    Log.Error(error);
+                    new TagToolError(CommandError.CustomError, error);
                 return blamType;
             }
             else if (type == typeof(CachedTag))
@@ -543,11 +542,17 @@ namespace TagTool.Commands.Editing
             }
             else if (typeof(IBounds).IsAssignableFrom(type))
             {
-                if (!TryParseBounds(cache, args, type, out IBounds bounds, out string error))
+                if (type.IsGenericType)
                 {
-                    return new TagToolError(CommandError.ArgInvalid, error);
+                    var tDefinition = type.GetGenericTypeDefinition();
+                    var tArguments = type.GetGenericArguments();
+                    type = tDefinition.MakeGenericType(tArguments);
                 }
-                return bounds;
+
+                var boundsType = Activator.CreateInstance(type) as IBounds;
+                if (!boundsType.TryParse(cache, args, out boundsType, out string error))
+                    Console.WriteLine(error);
+                return boundsType;
             }
             else
             {
@@ -592,33 +597,6 @@ namespace TagTool.Commands.Editing
             while (ContextStack.Context != previousContext) ContextStack.Pop();
             Owner = previousOwner;
             Structure = previousStructure;
-        }
-
-
-        private static bool TryParseBounds(GameCache cache, List<string> args, Type fieldType, out IBounds result, out string error)
-        {
-            result = null;
-            error = null;
-
-            var argType = fieldType.GenericTypeArguments[0];
-            var argCount = SetFieldCommand.RangeArgCount(argType);
-
-            if (argCount * 2 != args.Count)
-            {
-                error = $"{args.Count} arguments supplied; should be {argCount * 2}";
-                return false;
-            }
-
-            var min = SetFieldCommand.ParseArgs(cache, argType, null, args.Take(argCount).ToList());
-            var max = SetFieldCommand.ParseArgs(cache, argType, null, args.Skip(argCount).Take(argCount).ToList());
-            if (min.Equals(false) || max.Equals(false))
-            {
-                error = $"Invalid value parsed.";
-                return false;
-            }
-
-            result = Activator.CreateInstance(fieldType, [min, max]) as IBounds;
-            return true;
         }
     }
 }

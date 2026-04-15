@@ -1,12 +1,13 @@
-﻿using System;
+﻿using TagTool.Cache;
 using System.Collections.Generic;
-using System.Linq;
-using TagTool.Cache;
 using TagTool.Cache.HaloOnline;
-using TagTool.Cache.ModPackages;
+using System;
 using TagTool.Commands.Common;
 using TagTool.Commands.Tags;
-using TagTool.Common.Logging;
+using System.IO;
+using TagTool.Cache.Gen3;
+using TagTool.IO;
+using System.Threading;
 
 namespace TagTool.Commands.Modding
 {
@@ -21,9 +22,10 @@ namespace TagTool.Commands.Modding
                 "CreateModPackage",
                 "Create context for a mod package. Optionally have more than one tag cache and use unmanaged streams for 2gb + resources.",
 
-                "CreateModPackage [# of tag caches] [testname]",
+                "CreateModPackage [# of tag caches, [large]] [testname]",
 
                 "\t- [# of tag caches]: An integer used for when you want more than one isolated tag cache."
+                + "\n\t- [large]: Used with a tag cache count to allow unmanaged streams for 2GB + resources."
                 + "\n\t- [testname]: A name for a test mod package. Skips the standard dialog, used without other arguments.")
         {
             ContextStack = contextStack;
@@ -36,6 +38,7 @@ namespace TagTool.Commands.Modding
                 return new TagToolError(CommandError.ArgCount);
 
             int tagCacheCount = 1;
+            bool useLargeStreams = false;
             bool useDialog = true;
 
             if (args.Count > 0)
@@ -50,117 +53,114 @@ namespace TagTool.Commands.Modding
                     else
                         return new TagToolError(CommandError.ArgInvalid, $"\"{args[0]}\"");
                 }
+
+                if (args.Count == 2 && args[1].ToLower() == "large")
+                    useLargeStreams = true;
             }
+                
 
-            var builder = new ModPackageBuilder(Cache);
+            Console.WriteLine("Initializing cache...");
 
-            if (useDialog)
+            GameCacheModPackage modCache = new GameCacheModPackage(Cache, useLargeStreams);
+
+            // create metadata here
+            modCache.BaseModPackage.CreateDescription(IgnoreArgumentVariables, useDialog);
+
+            if (!useDialog)
+                modCache.BaseModPackage.Metadata.Name = args[0].Split('.')[0];
+
+            // initialize mod package with current HO cache
+            Console.WriteLine($"Building initial tag cache from reference...");
+
+            var referenceStream = new MemoryStream(); // will be reused by all base caches
+            BuildInitialTagCache(Cache, modCache, referenceStream);
+
+            Console.WriteLine("Done!");
+
+            for (int i = 0; i < tagCacheCount; i++)
             {
-                builder.SetMetadata(PromptMetadata(IgnoreArgumentVariables));
-                Console.WriteLine();
-                builder.SetModifierFlags(PromptTypes(IgnoreArgumentVariables));
-                Console.WriteLine();
-
-                for (int i = 0; i < tagCacheCount; i++)
+                string name = "default";
+                if (tagCacheCount > 1 || (args.Count == 1 && useLargeStreams))
                 {
-                    string name = "default";
-                    if (tagCacheCount > 1)
-                    {
-                        Console.WriteLine($"Enter the name of tag cache {i} (32 chars max):");
-                        name = Console.ReadLine().Trim();
-                        name = name.Length <= 32 ? name : name.Substring(0, 32);
-                    }
+                    Console.WriteLine($"Enter the name of tag cache {i} (32 chars max):");
+                    name = Console.ReadLine().Trim();
+                    name = name.Length <= 32 ? name : name.Substring(0, 32);
+                }
+                else if (!useDialog)
+                    name = modCache.BaseModPackage.Metadata.Name;
 
-                    builder.AddTagCache(name);
+                Dictionary<int, string> tagNames = new Dictionary<int, string>();
+
+
+                foreach (var tag in Cache.TagCache.NonNull())
+                    tagNames[tag.Index] = tag.Name;
+
+
+
+                referenceStream.Position = 0;
+                var ms = referenceStream;
+                if (i > 0)
+                {
+                    ms = new MemoryStream();
+                    referenceStream.CopyTo(ms);
+                    ms.Position = 0;
                 }
 
-                Console.WriteLine();
-            }
-            else
-            {
-                builder.CreateTest(args[0].Split('.')[0]);
+                modCache.BaseModPackage.TagCachesStreams.Add(new ExtantStream(ms));
+                modCache.BaseModPackage.CacheNames.Add(name);
+                modCache.BaseModPackage.TagCacheNames.Add(tagNames);
             }
 
-            Console.WriteLine("Creating mod package...");
+            modCache.SetActiveTagCache(0);
 
-            ModPackage modPackage = builder.Build();
+            ContextStack.Push(TagCacheContextFactory.Create(ContextStack, modCache,
+                $"{modCache.BaseModPackage.Metadata.Name}.pak"));
 
-            Console.WriteLine("Done.");
-
-            ContextStack.Push(TagCacheContextFactory.Create(
-                ContextStack, 
-                new GameCacheModPackage(Cache, modPackage), 
-                $"{modPackage.Metadata.Name}.pak"));
-
-            RunMetrics.Start();
+            Program.ErrorCount = 0;
+            Program.WarningCount = 0;
+            Program._stopWatch.Start();
 
             return true;
+
         }
 
-        public static ModPackageMetadata PromptMetadata(bool ignoreArgumentVariables)
+        public static void BuildInitialTagCache(GameCacheHaloOnline baseCache, GameCacheModPackage modCache, MemoryStream referenceStream)
         {
-            var metadata = new ModPackageMetadata();
+            modCache.BaseModPackage.CacheNames = new List<string>();
+            modCache.BaseModPackage.TagCachesStreams = new List<ExtantStream>();
+            modCache.BaseModPackage.TagCacheNames = new List<Dictionary<int, string>>();
 
-            Console.WriteLine("Enter the display name of the mod package (32 chars max):");
-            metadata.Name = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), ignoreArgumentVariables);
+            var writer = new EndianWriter(referenceStream, false);
+            var modTagCache = new TagCacheHaloOnline(baseCache.Version, referenceStream, modCache.BaseModPackage.StringTable);
 
-            Console.WriteLine();
-            Console.WriteLine("Enter the description of the mod package (512 chars max):");
-            metadata.Description = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), ignoreArgumentVariables);
-
-            Console.WriteLine();
-            Console.WriteLine("Enter the author of the mod package (32 chars max):");
-            metadata.Author = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), ignoreArgumentVariables);
-
-            Console.WriteLine();
-            Console.WriteLine("Enter the version of the mod package: (major.minor)");
-
-            try
+            referenceStream.Seek(0, SeekOrigin.End);
+            for (var tagIndex = 0; tagIndex < baseCache.TagCache.Count; tagIndex++)
             {
-                var version = Version.Parse(CommandRunner.ApplyUserVars(Console.ReadLine(), ignoreArgumentVariables));
-                metadata.VersionMajor = (short)version.Major;
-                metadata.VersionMinor = (short)version.Minor;
-                if (version.Major == 0 && version.Minor == 0)
-                    throw new ArgumentException(nameof(version));
-            }
-            catch (ArgumentException e)
-            {
-                Console.WriteLine(e.Message);
-                Log.Error("Failed to parse version number, using default (1.0)");
-                metadata.VersionMajor = 1;
-                metadata.VersionMinor = 0;
-            }
+                var srcTag = baseCache.TagCache.GetTag(tagIndex);
 
-            return metadata;
-        }
-
-        public static ModifierFlags PromptTypes(bool ignoreArgumentVariables, ModifierFlags modifierFlags = ModifierFlags.None)
-        {
-            Console.WriteLine("Please enter the types of the mod package. Separated by a space [MainMenu Multiplayer Campaign Firefight Character]");
-            string response = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), ignoreArgumentVariables);
-
-            modifierFlags &= ModifierFlags.SignedBit;
-
-            var args = response.Split(' ');
-            for (int x = 0; x < args.Length; x++)
-            {
-                if (Enum.TryParse<ModifierFlags>(args[x].ToLower().Trim(), out var value) && args[x] != "SignedBit")
+                if (srcTag == null)
                 {
-                    modifierFlags |= value;
+                    modTagCache.AllocateTag(new TagGroupGen3());
+                    continue;
                 }
-                else if (string.IsNullOrWhiteSpace(args[x]))
+
+                var emptyTag = (CachedTagHaloOnline)modTagCache.AllocateTag(srcTag.Group, srcTag.Name);
+                var cachedTagData = new CachedTagData
                 {
-                    if (args.Count() == 1)
-                    {
-                        modifierFlags |= ModifierFlags.multiplayer;
-                        Console.WriteLine($"Flags not provided. Multiplayer assumed.");
-                    }
-                }
-                else
-                    Log.Warning($"Could not parse flag \"{args[x]}\"");
+                    Data = new byte[0],
+                    Group = (TagGroupGen3)emptyTag.Group,
+                };
+
+                var headerSize = CachedTagHaloOnline.CalculateHeaderSize(cachedTagData);
+                var alignedHeaderSize = (uint)((headerSize + 0xF) & ~0xF);
+                emptyTag.HeaderOffset = referenceStream.Position;
+                emptyTag.Offset = alignedHeaderSize;
+                emptyTag.TotalSize = alignedHeaderSize;
+                emptyTag.WriteHeader(writer, modTagCache.StringTableReference);
+                StreamUtil.Fill(referenceStream, 0, (int)(alignedHeaderSize - headerSize));
             }
 
-            return modifierFlags;
+            modTagCache.UpdateTagOffsets(writer);
         }
     }
 }

@@ -1,9 +1,8 @@
+using TagTool.Cache;
+using TagTool.Common;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using TagTool.Cache;
-using TagTool.Common;
-using static TagTool.Audio.SoundClass;
 using static TagTool.Tags.TagFieldFlags;
 
 namespace TagTool.Tags.Definitions.Gen2
@@ -13,8 +12,7 @@ namespace TagTool.Tags.Definitions.Gen2
     {
         public List<SoundClassBlock> Classes;
         
-        [TagStructure(Size = 0x5C, Platform = CachePlatform.Original)]
-        [TagStructure(Size = 0x78, Platform = CachePlatform.MCC)]
+        [TagStructure(Size = 0x5C)]
         public class SoundClassBlock : TagStructure
         {
             /// <summary>
@@ -61,18 +59,6 @@ namespace TagTool.Tags.Definitions.Gen2
             public float TransmissionMultiplier;
             public float ObstructionMaxBend;
             public float OcclusionMaxBend;
-
-            [TagField(Platform = CachePlatform.MCC)]
-            public float InnerSilenceDistance;
-            [TagField(Platform = CachePlatform.MCC)]
-            public float LowPassMinimumDistance;
-            [TagField(Platform = CachePlatform.MCC)]
-            public float LowPassMaximumDistance;
-            [TagField(Platform = CachePlatform.MCC)]
-            public byte[] Function;
-            [TagField(Platform = CachePlatform.MCC)]
-            public List<SoundClassDucking> ExtDucking;
-
             
             [Flags]
             public enum InternalFlagsValue : ushort
@@ -115,17 +101,6 @@ namespace TagTool.Tags.Definitions.Gen2
             {
                 FirstPerson,
                 Ambient
-            }
-
-            [TagStructure(Size = 0x14)]
-            public class SoundClassDucking : TagStructure
-            {
-                [TagField(EnumType = typeof(int))]
-                public SoundClassHalo2 SoundClass;
-                public float GainDB;
-                public float FadeInTime;
-                public float SustainTime;
-                public float FadeOutTime;
             }
         }
     }

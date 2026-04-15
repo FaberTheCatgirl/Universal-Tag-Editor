@@ -11,7 +11,6 @@ using TagTool.Tags.Definitions;
 using TagTool.Tags;
 using System.Diagnostics;
 using TagTool.Havok;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.CollisionModels
 {
@@ -40,7 +39,7 @@ namespace TagTool.Commands.CollisionModels
             Console.WriteLine("NOOOO you can't just generate mopps with that shitty code! (begin mopp generation)");
             if (!generate_mopp_codes(ref Permutation))
             {
-                Log.Error("Failed to build mopps!");
+                new TagToolError(CommandError.CustomError, "Failed to build mopps!");
                 return false;
             }
             else

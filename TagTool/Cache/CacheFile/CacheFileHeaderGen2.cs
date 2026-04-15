@@ -5,7 +5,7 @@ using TagTool.Tags;
 
 namespace TagTool.Cache
 {
-    [TagStructure(Size = 0x800, MinVersion = CacheVersion.Halo2Alpha, MaxVersion = CacheVersion.Halo2PC)]
+    [TagStructure(Size = 0x800, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
     public class CacheFileHeaderGen2 : CacheFileHeader
     {
         //
@@ -19,9 +19,9 @@ namespace TagTool.Cache
         public uint TagTableHeaderOffset;
         public TagMemoryHeader TagMemoryHeader;
 
-        [TagField(MinVersion = CacheVersion.Halo2PC)]
+        [TagField(MinVersion = CacheVersion.Halo2Vista)]
         public int TagDependencyGraphOffset;
-        [TagField(MinVersion = CacheVersion.Halo2PC)]
+        [TagField(MinVersion = CacheVersion.Halo2Vista)]
         public uint TagDependencyGraphSize;
 
 
@@ -60,30 +60,30 @@ namespace TagTool.Cache
 
         public TagNameHeader TagNamesHeader;
 
-        [TagField(MinVersion = CacheVersion.Halo2PC)]
+        [TagField(MinVersion = CacheVersion.Halo2Vista)]
         public int LanguagePacksOffset = -1;
 
-        [TagField(MinVersion = CacheVersion.Halo2PC)]
+        [TagField(MinVersion = CacheVersion.Halo2Vista)]
         public uint LanguagePacksSize = 0;
 
-        [TagField(MinVersion = CacheVersion.Halo2PC)]
+        [TagField(MinVersion = CacheVersion.Halo2Vista)]
         public uint SecondarySoundGestaltDatumIndex = uint.MaxValue;
 
-        [TagField(MinVersion = CacheVersion.Halo2PC)]
+        [TagField(MinVersion = CacheVersion.Halo2Vista)]
         public int FastLoadGeometryBlockOffset = -1;
 
-        [TagField(MinVersion = CacheVersion.Halo2PC)]
+        [TagField(MinVersion = CacheVersion.Halo2Vista)]
         public uint FastLoadGeometryBlockSize = 0;
 
         public uint Checksum;
 
-        [TagField(MinVersion = CacheVersion.Halo2PC)]
+        [TagField(MinVersion = CacheVersion.Halo2Vista)]
         public uint MoppCodesChecksum;
 
-        [TagField(Length = 1320, MinVersion = CacheVersion.Halo2Alpha, MaxVersion = CacheVersion.Halo2Xbox)]
+        [TagField(Length = 1320, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Xbox)]
         public byte[] UnknownsH2X = new byte[1320];
 
-        [TagField(Length = 1284, MinVersion = CacheVersion.Halo2PC, MaxVersion = CacheVersion.Halo2PC)]
+        [TagField(Length = 1284, MinVersion = CacheVersion.Halo2Vista, MaxVersion = CacheVersion.Halo2Vista)]
         public byte[] UnknownsH2V = new byte[1284];
 
         public Tag FooterSignature;

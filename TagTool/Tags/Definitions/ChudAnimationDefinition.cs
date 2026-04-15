@@ -62,10 +62,6 @@ namespace TagTool.Tags.Definitions
             [TagStructure(Size = 0x10)]
             public class AnimationBlock : TagStructure
 			{
-                [TagField(MinVersion = CacheVersion.HaloReach)]
-                public float FrameNumber;
-
-                [TagField(MaxVersion = CacheVersion.HaloOnline700123)]
                 public int TimeOffset; // milliseconds
                 public RealPoint3d Position;
             }
@@ -116,7 +112,11 @@ namespace TagTool.Tags.Definitions
                 [TagField(MinVersion = CacheVersion.Halo3Retail, Platform = CachePlatform.MCC)]
                 public ChudKeyframeColorSourceEnum ColorSource;
 
-                public enum ChudKeyframeColorSourceEnum : int
+                [TagField(Length = 2, Flags = TagFieldFlags.Padding, MinVersion = CacheVersion.HaloOnlineED)]
+                [TagField(Length = 2, Flags = TagFieldFlags.Padding, MinVersion = CacheVersion.Halo3Retail, Platform = CachePlatform.MCC)]
+                public byte[] XYJAZZQJ;
+
+                public enum ChudKeyframeColorSourceEnum : short
                 {
                     Taco
                 }

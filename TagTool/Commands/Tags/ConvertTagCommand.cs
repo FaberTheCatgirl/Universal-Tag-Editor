@@ -506,7 +506,7 @@ namespace TagTool.Commands.Tags
         {
             foreach (var expr in data.ScriptExpressions)
             {
-                if (expr.Flags == HsSyntaxNodeFlags.Group || (expr.Flags == HsSyntaxNodeFlags.Expression && expr.ValueType.HaloOnline == HsType.FunctionName))
+                if (expr.Flags == HsSyntaxNodeFlags.Group || (expr.Flags == HsSyntaxNodeFlags.Expression && expr.ValueType.HaloOnline == HsType.HaloOnlineValue.FunctionName))
                 {
                     // Either a function call or a function_name
                     expr.Opcode = FixOpcode(expr.Opcode);

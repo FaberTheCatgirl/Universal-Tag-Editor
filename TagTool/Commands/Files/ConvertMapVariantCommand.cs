@@ -8,7 +8,6 @@ using TagTool.BlamFile.Reach;
 using TagTool.Cache;
 using TagTool.Commands.Common;
 using TagTool.Common;
-using TagTool.Common.Logging;
 using TagTool.IO;
 using TagTool.Tags.Definitions;
 
@@ -93,7 +92,7 @@ namespace TagTool.Commands.Files
             }
             else
             {
-                Log.Error("Unsupported Map Variant version");
+                new TagToolError(CommandError.OperationFailed, "Unsupported Map Variant version");
                 return null;
             }
         }
@@ -112,7 +111,7 @@ namespace TagTool.Commands.Files
             var sourceScenario = sourceCache.Deserialize<Scenario>(sourceCacheStream, sourceCache.TagCache.FindFirstInGroup("scnr"));
             if (sourceScenario.MapId != mapId)
             {
-                Log.Error($"Scenario map ids did not match {sourceScenario.MapId} <=> {mapId}");
+                new TagToolError(CommandError.FileNotFound, $"Scenario map id did not match");
                 return null;
             }
 
@@ -180,7 +179,7 @@ namespace TagTool.Commands.Files
             var mapFile = new FileInfo(Path.Combine(mapsDirectory.FullName, $"{MapIdToFilename[mapId]}.map"));
             if (!mapFile.Exists)
             {
-                Log.Error($"'${MapIdToFilename[mapId]}.map' could not be found.");
+                new TagToolError(CommandError.FileNotFound, $"'${MapIdToFilename[mapId]}.map' could not be found.");
                 return null;
             }
             return GameCache.Open(mapFile);

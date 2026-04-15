@@ -5,8 +5,6 @@ namespace TagTool.Shaders.ShaderMatching
 {
     public class ParticleSorter : SortingInterface
     {
-        public static readonly ParticleSorter Instance = new();
-
         private static List<ParticleOptionTypes> TypeOrder = new List<ParticleOptionTypes> {
             ParticleOptionTypes.specialized_rendering,
             ParticleOptionTypes.lighting,

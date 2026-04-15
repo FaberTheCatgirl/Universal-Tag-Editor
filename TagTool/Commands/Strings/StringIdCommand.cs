@@ -5,7 +5,6 @@ using System.Linq;
 using TagTool.Cache;
 using TagTool.Common;
 using TagTool.Commands.Common;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.Strings
 {
@@ -62,7 +61,7 @@ namespace TagTool.Commands.Strings
 
             if (Cache.StringTable.Contains(str))
             {
-                Log.Info($"StringID \"{str}\" already exists");
+                new TagToolError(CommandError.CustomError, "That string already exists!");
                 return true;
             }
 
@@ -88,7 +87,7 @@ namespace TagTool.Commands.Strings
             if (str != null)
                 Console.WriteLine(str);
             else
-                Log.Error($"Unable to find a string with ID 0x{stringId:X}.");
+                new TagToolError(CommandError.CustomError, $"Unable to find a string with ID 0x{stringId:X}.");
 
             return true;
         }
@@ -161,7 +160,7 @@ namespace TagTool.Commands.Strings
 
             if (strings.Count == 0)
             {
-                Log.Error("No strings found!");
+                new TagToolError(CommandError.CustomError, "No strings found!");
                 return true;
             }
 

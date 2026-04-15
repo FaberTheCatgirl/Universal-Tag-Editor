@@ -8,7 +8,6 @@ using TagTool.Animations.Data;
 using TagTool.Cache;
 using TagTool.Commands.Common;
 using TagTool.Common;
-using TagTool.Common.Logging;
 using TagTool.IO;
 using TagTool.Tags.Definitions.Gen2;
 
@@ -57,7 +56,7 @@ namespace TagTool.Commands.Gen2.ModelAnimationGraphs
             List<Node> renderModelNodes = GetNodeDefaultValues();
 
             //fixup for h2x, get raw resource data and place it in the animation blocks
-            if (CacheContext.Version < CacheVersion.Halo2PC)
+            if (CacheContext.Version < CacheVersion.Halo2Vista)
                 foreach (var animationindex in AnimationIndices)
                 {
                     ModelAnimationGraph.AnimationGraphResourcesStructBlock.AnimationPoolBlock animationblock = Animation.Resources.AnimationsAbcdcc[animationindex];
@@ -77,7 +76,7 @@ namespace TagTool.Commands.Gen2.ModelAnimationGraphs
 
                 if (animationData1 == null)
                 {
-                    Log.Warning($"Failed to export {str} (invalid resource?)");
+                    new TagToolWarning($"Failed to export {str} (invalid resource?)");
                     continue;
                 }
                 Animation animation = new Animation(renderModelNodes, animationData1);
@@ -149,7 +148,7 @@ namespace TagTool.Commands.Gen2.ModelAnimationGraphs
                 PrimaryRenderModelNodes = GetRenderModelNodes(primarynodes,
                     CalculateNodeListChecksum(Animation.Resources.SkeletonNodesAbcdcc, 0, true));
                 if (PrimaryRenderModelNodes.Count < primarynodes.Count)
-                    Log.Warning($"Matching primary model not found! Animation may not appear properly.");
+                    new TagToolWarning($"Matching primary model not found! Animation may not appear properly.");
             }
             if (Animation.Resources.SkeletonNodesAbcdcc.Any(n => n.ModelFlags.HasFlag(ModelAnimationGraph.AnimationGraphResourcesStructBlock.AnimationGraphNodeBlock.ModelFlagsValue.SecondaryModel)))
             {
@@ -157,7 +156,7 @@ namespace TagTool.Commands.Gen2.ModelAnimationGraphs
                 SecondaryRenderModelNodes = GetRenderModelNodes(secondarynodes,
                     CalculateNodeListChecksum(Animation.Resources.SkeletonNodesAbcdcc, 0, false));
                 if (SecondaryRenderModelNodes.Count < secondarynodes.Count)
-                    Log.Warning($"Matching secondary model not found! Animation may not appear properly.");
+                    new TagToolWarning($"Matching secondary model not found! Animation may not appear properly.");
             }
 
             foreach (var skellynode in Animation.Resources.SkeletonNodesAbcdcc)
@@ -175,7 +174,7 @@ namespace TagTool.Commands.Gen2.ModelAnimationGraphs
                 if (matchingnode == null)
                 {
                     matchingnode = new RenderModel.Node();
-                    Log.Warning($"No matching render model node found for {CacheContext.StringTable.GetString(skellynode.Name)}");
+                    new TagToolWarning($"No matching render model node found for {CacheContext.StringTable.GetString(skellynode.Name)}");
                 }
 
                 NodeList.Add(new Node

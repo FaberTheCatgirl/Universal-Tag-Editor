@@ -8,7 +8,7 @@ using TagTool.Common;
 using TagTool.Geometry.Utils;
 using TagTool.Tags;
 using TagTool.Tags.Definitions;
-using TagTool.Porting;
+using static TagTool.Commands.Porting.PortTagCommand;
 
 namespace TagTool.Commands.Porting
 {
@@ -16,11 +16,10 @@ namespace TagTool.Commands.Porting
 
     class PortClusterGeometryObjectCommand : Command
     {
-        private readonly GameCacheHaloOnlineBase HoCache;
-        private readonly GameCache BlamCache;
-        private readonly PortingContext PortContext;
+        private GameCacheHaloOnlineBase HoCache { get; }
+        private GameCache BlamCache;
 
-        public PortClusterGeometryObjectCommand(GameCacheHaloOnlineBase cache, GameCache blamCache, PortingContext portContext) :
+        public PortClusterGeometryObjectCommand(GameCacheHaloOnlineBase cache, GameCache blamCache) :
             base(true,
 
                 "PortClusterGeometryObject",
@@ -31,15 +30,14 @@ namespace TagTool.Commands.Porting
         {
             HoCache = cache;
             BlamCache = blamCache;
-            PortContext = portContext;
         }
 
         public override object Execute(List<string> args)
         {
             var argStack = new Stack<string>(args.AsEnumerable().Reverse());
 
-            PortingFlags portingFlags = ParsePortingFlags(argStack);
-           
+            var portingFlags = ParsePortingFlags(argStack);
+
             if (argStack.Count < 1)
                 return new TagToolError(CommandError.ArgCount, "Expected bsp index!");
 
@@ -49,8 +47,6 @@ namespace TagTool.Commands.Porting
             using (var blamCacheStream = BlamCache.OpenCacheRead())
             using (var hoCacheStream = HoCache.OpenCacheReadWrite())
             {
-                using var portingScope = PortContext.CreateScope(ParsePortingFlags(argStack));
-
                 var blamScnr = BlamCache.Deserialize<Scenario>(blamCacheStream, BlamCache.TagCache.FindFirstInGroup("scnr"));
                 var blamSbsp = BlamCache.Deserialize<ScenarioStructureBsp>(blamCacheStream, blamScnr.StructureBsps[sbspIndex].StructureBsp);
 
@@ -91,7 +87,9 @@ namespace TagTool.Commands.Porting
                 if (desiredInstances.Count < 1)
                     return true;
 
-                var converter = new GeometryToObjectConverter(HoCache, hoCacheStream, BlamCache, blamCacheStream, blamScnr, sbspIndex, PortContext);
+                var converter = new GeometryToObjectConverter(HoCache, hoCacheStream, BlamCache, blamCacheStream, blamScnr, sbspIndex);
+                converter.PortTag.SetFlags(portingFlags);
+
 
                 var forgTag = HoCache.TagCache.FindFirstInGroup("forg");
                 var forg = HoCache.Deserialize<ForgeGlobalsDefinition>(hoCacheStream, forgTag);
@@ -99,27 +97,37 @@ namespace TagTool.Commands.Porting
                 var newTags = new List<CachedTag>();
                 foreach (var kv in desiredInstances)
                 {
-                    var tag = converter.ConvertGeometry(kv.Key, kv.Value, true);
-
-                    forg.Palette.Add(new ForgeGlobalsDefinition.PaletteItem()
+                    try
                     {
-                        CategoryIndex = (short)1,
-                        DescriptionIndex = -1,
-                        Name = tag.Name,
-                        Object = tag,
-                        Type = ForgeGlobalsDefinition.PaletteItemType.Prop,
-                        Setters = new List<ForgeGlobalsDefinition.PaletteItem.Setter>()
-                            {
-                                new ForgeGlobalsDefinition.PaletteItem.Setter()
-                                {
-                                    Target = ForgeGlobalsDefinition.PaletteItem.SetterTarget.General_Physics,
-                                    IntegerValue = 1 // phased
-                                }
-                            }
-                    });
+                        var tag = converter.ConvertGeometry(kv.Key, kv.Value, true);
+
+                        forg.Palette.Add(new ForgeGlobalsDefinition.PaletteItem()
+                        {
+                            CategoryIndex = (short)1,
+                            DescriptionIndex = -1,
+                            Name = tag.Name,
+                            Object = tag,
+                            Type = ForgeGlobalsDefinition.PaletteItemType.Prop,
+                            Setters = new List<ForgeGlobalsDefinition.PaletteItem.Setter>()
+                             {
+                                 new ForgeGlobalsDefinition.PaletteItem.Setter()
+                                 {
+                                     Target = ForgeGlobalsDefinition.PaletteItem.SetterTarget.General_Physics,
+                                     IntegerValue = 1 // phased
+                                 }
+                             }
+                        });
+
+                    }
+                    finally
+                    {
+                        HoCache.SaveStrings();
+                        HoCache.SaveTagNames();
+                    }
                 }
                 HoCache.Serialize(hoCacheStream, forgTag, forg);
             }
+
             return true;
         }
 

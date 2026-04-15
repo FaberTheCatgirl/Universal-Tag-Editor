@@ -10,14 +10,9 @@ namespace TagTool.Common
     public struct StringId : IComparable<StringId>, IBlamType
 	{
         /// <summary>
-        /// An invalid StringID
+        /// A null stringID.
         /// </summary>
-        public static readonly StringId Invalid = new StringId(uint.MaxValue);
-
-        /// <summary>
-        /// An empty string
-        /// </summary>
-        public static readonly StringId Empty = new StringId(0);
+        public static readonly StringId Invalid = new StringId(0);
 
         /// <summary>
         /// Gets the value of the stringID as a 32-bit integer.

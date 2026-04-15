@@ -2,7 +2,6 @@ using SimpleJSON;
 using System;
 using System.IO;
 using TagTool.Commands.Common;
-using TagTool.Common.Logging;
 
 namespace TagTool.Geometry
 {
@@ -32,7 +31,7 @@ namespace TagTool.Geometry
             catch (Exception ex)
             {
                 if (ex is FileNotFoundException || ex is DirectoryNotFoundException)
-                    Log.Error(ex);
+                    new TagToolError(CommandError.FileNotFound);
                 return null;
             };
 

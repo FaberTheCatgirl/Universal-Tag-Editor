@@ -6,7 +6,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using TagTool.Common;
-using TagTool.Geometry.Utils;
 
 // REFERENCE:  Halo-Asset-Blender-Development-Toolset
 // https://github.com/General-101/Halo-Asset-Blender-Development-Toolset
@@ -21,7 +20,7 @@ namespace TagTool.Geometry.Ass
 
         public void Write(FileInfo file)
         {
-            using (var stream = BlamAssetWriter.Create(file))
+            using (var stream = file.CreateText())
             {
                 stream.WriteLine(";### HEADER ###");
                 stream.WriteLine(7); //version
@@ -70,7 +69,7 @@ namespace TagTool.Geometry.Ass
             public string Name = "";
             public string MaterialEffect = "";
             public List<string> MaterialStrings = new List<string>();
-            public void Write(BlamAssetWriter stream)
+            public void Write(StreamWriter stream)
             {
                 stream.WriteLine($"\"{Name}\"");
                 stream.WriteLine($"\"{MaterialEffect}\"");
@@ -88,7 +87,7 @@ namespace TagTool.Geometry.Ass
             public List<AssVertex> Vertices = new List<AssVertex>();
             public List<AssTriangle> Triangles = new List<AssTriangle>();
             public AssLightInfo LightInfo = new AssLightInfo();
-            public void Write(BlamAssetWriter stream)
+            public void Write(StreamWriter stream)
             {
                 switch (ObjectType)
                 {
@@ -163,18 +162,18 @@ namespace TagTool.Geometry.Ass
                 public void Read(StreamReader stream)
                 {
                 }
-                public void Write(BlamAssetWriter stream)
+                public void Write(StreamWriter stream)
                 {
-                    stream.WritePoint3d(Position);
-                    stream.WriteVector3d(Normal);
-                    stream.WriteRealRGB(VertexColor);
+                    WritePoint3d(Position, stream);
+                    WriteVector3d(Normal, stream);
+                    WriteRealRGB(VertexColor, stream);
                     stream.WriteLine(NodeSets.Count);
                     if (NodeSets.Count > 0)
                     {
                         foreach (var nodeset in NodeSets)
                         {
                             stream.WriteLine(nodeset.NodeIndex);
-                            stream.WriteFloat(nodeset.NodeWeight);
+                            WriteFloat(nodeset.NodeWeight, stream);
                         }
                     }
                     stream.WriteLine(UvSets.Count);
@@ -182,7 +181,7 @@ namespace TagTool.Geometry.Ass
                     {
                         foreach (var uvset in UvSets)
                         {
-                            stream.WritePoint3d(uvset.TextureCoordinates);
+                            WritePoint3d(uvset.TextureCoordinates, stream);
                         }
                     }
                 }
@@ -197,8 +196,9 @@ namespace TagTool.Geometry.Ass
                 {
                 }
 
-                public void Write(BlamAssetWriter stream)
+                public void Write(StreamWriter stream)
                 {
+                    stream.WriteLine(MaterialIndex);
                     stream.WriteLine($"{MaterialIndex}\t\t{VertexIndices[0]}\t{VertexIndices[1]}\t{VertexIndices[2]}");
                 }
             }
@@ -209,36 +209,89 @@ namespace TagTool.Geometry.Ass
             public int ObjectIndex = -1;
             public string Name = "";
             public int UniqueID = -1;
-            public int ParentID = 0;
+            public int ParentID = -1;
             public int InheritanceFlag = 0;
             public Transform LocalTransform = new Transform();
             public Transform PivotTransform = new Transform();
 
             public class Transform
             {
-                public RealQuaternion Rotation = new(0.0f, 0.0f, 0.0f, 1.0f);
+                public RealQuaternion Rotation = new RealQuaternion();
                 public RealVector3d Translation = new RealVector3d();
                 public float Scale = 1.0f;
             }
 
-            public void Write(BlamAssetWriter stream)
+            public void Write(StreamWriter stream)
             {
                 stream.WriteLine(ObjectIndex);
                 stream.WriteLine($"\"{Name}\"");
                 stream.WriteLine(UniqueID);
                 stream.WriteLine(ParentID);
                 stream.WriteLine(InheritanceFlag);
-                stream.WriteQuaternion(LocalTransform.Rotation);
-                stream.WriteVector3d(LocalTransform.Translation);
-                stream.WriteFloat(LocalTransform.Scale);
-                stream.WriteQuaternion(PivotTransform.Rotation);
-                stream.WriteVector3d(PivotTransform.Translation);
-                stream.WriteFloat(PivotTransform.Scale);
+                WriteQuaternion(LocalTransform.Rotation, stream);
+                WriteVector3d(LocalTransform.Translation, stream);
+                WriteFloat(LocalTransform.Scale, stream);
+                WriteQuaternion(PivotTransform.Rotation, stream);
+                WriteVector3d(PivotTransform.Translation, stream);
+                WriteFloat(PivotTransform.Scale, stream);
             }
         }
 
         public class AssElement
         {
+            public void WriteQuaternion(RealQuaternion quaternion, StreamWriter stream)
+            {
+                stream.Write(quaternion.I.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(quaternion.J.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(quaternion.K.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(quaternion.W.ToString("0.0000000000"));
+                stream.WriteLine();
+            }
+
+            public void WriteVector3d(RealVector3d point, StreamWriter stream)
+            {
+                stream.Write(point.I.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(point.J.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(point.K.ToString("0.0000000000"));
+                stream.WriteLine();
+            }
+            public void WritePoint3d(RealPoint3d point, StreamWriter stream)
+            {
+                stream.Write(point.X.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(point.Y.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(point.Z.ToString("0.0000000000"));
+                stream.WriteLine();
+            }
+            public void WriteRealRGB(RealRgbColor color, StreamWriter stream)
+            {
+                stream.Write(color.Red.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(color.Green.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(color.Blue.ToString("0.0000000000"));
+                stream.WriteLine();
+            }
+
+            public void WritePoint2d(RealPoint2d point, StreamWriter stream)
+            {
+                stream.Write(point.X.ToString("0.0000000000"));
+                stream.Write('\t');
+                stream.Write(point.Y.ToString("0.0000000000"));
+                stream.WriteLine();
+            }
+
+            public void WriteFloat(float number, StreamWriter stream)
+            {
+                stream.WriteLine(number.ToString("0.0000000000"));
+            }
+
             public RealVector3d ReadVector3d(StreamReader stream)
             {
                 string[] vector3dArray = stream.ReadLine().Split('\t');

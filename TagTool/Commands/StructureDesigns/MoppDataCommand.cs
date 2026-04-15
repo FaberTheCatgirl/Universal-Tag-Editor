@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.IO;
 using TagTool.IO;
 using TagTool.Tags;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.StructureDesigns
 {
@@ -62,7 +61,7 @@ namespace TagTool.Commands.StructureDesigns
 
             if (!File.Exists(file))
             {
-                Log.Error($"\"{file}\" not found");
+                new TagToolError(CommandError.FileNotFound, $"\"{file}\"");
                 return;
             }
 

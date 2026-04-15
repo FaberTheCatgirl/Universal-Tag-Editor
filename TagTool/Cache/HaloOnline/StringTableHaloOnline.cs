@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using TagTool.Common;
-using TagTool.Common.Logging;
 using TagTool.IO;
 
 namespace TagTool.Cache.HaloOnline
@@ -13,20 +12,19 @@ namespace TagTool.Cache.HaloOnline
     {
         private object _cacheLock = new object();
 
-        public StringTableHaloOnline(CacheVersion version)
+        public StringTableHaloOnline(CacheVersion version, Stream stream)
         {
+            Version = version;
+
             Resolver = null;
 
-            if (CacheVersionDetection.Compare(version, CacheVersion.HaloOnline700123) >= 0)
+            if (CacheVersionDetection.Compare(Version, CacheVersion.HaloOnline700123) >= 0)
                 Resolver = new StringIdResolverMS30();
-            else if (CacheVersionDetection.Compare(version, CacheVersion.HaloOnline498295) >= 0)
+            else if (CacheVersionDetection.Compare(Version, CacheVersion.HaloOnline498295) >= 0)
                 Resolver = new StringIdResolverMS28();
             else
                 Resolver = new StringIdResolverMS23();
-        }
 
-        public StringTableHaloOnline(CacheVersion version, Stream stream) : this(version)
-        {
             if ( stream != null && stream.Length != 0)
                 Load(stream);
             else
@@ -130,20 +128,37 @@ namespace TagTool.Cache.HaloOnline
         private void CreateFromStrings()
         {
             Clear();
-            Add("");
+            Add("");    // invalid stringid
 
-            string filePath = Path.Combine(DirectoryPaths.Data, "string_ids\\string_ids_ms23.txt");
-            if (!File.Exists(filePath))
-            {
-                Log.Warning($"Could not find \"{filePath}\"");
-                return;
-            }
+            foreach(var str in Enum.GetNames(typeof(GUIStrings)))
+                Add(TrimStringID(str));
 
-            foreach (string str in File.ReadAllLines(filePath))
+            foreach (var str in Enum.GetNames(typeof(ContentPromptStrings)))
+                Add(TrimStringID(str));
+
+            foreach (var str in Enum.GetNames(typeof(GameplayPromptStrings)))
+                Add(TrimStringID(str));
+
+            foreach (var str in Enum.GetNames(typeof(NetworkStrings)))
+                Add(TrimStringID(str));
+
+            foreach (var str in Enum.GetNames(typeof(MultiplayerEventStrings)))
+                Add(TrimStringID(str));
+
+            foreach (var str in Enum.GetNames(typeof(EventStrings)))
+                Add(TrimStringID(str));
+
+            foreach (var str in Enum.GetNames(typeof(BlfStrings)))
+                Add(TrimStringID(str));
+
+            foreach (var str in Enum.GetNames(typeof(GlobalStrings)))
+                Add(TrimStringID(str));
+
+            foreach (var str in Enum.GetNames(typeof(TagStrings)))
             {
-                string[] parts = str.Split('\"');
-                if (parts.Length == 3)
-                    Add(parts[1]);
+                if (str == "string_id_")  // skip invalid string since we already added it
+                    continue;
+                Add(TrimStringID(str));
             }
         }
 

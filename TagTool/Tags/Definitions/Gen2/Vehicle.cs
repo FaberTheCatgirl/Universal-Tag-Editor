@@ -1,9 +1,8 @@
+using TagTool.Cache;
+using TagTool.Common;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using TagTool.Cache;
-using TagTool.Common;
-using TagTool.Tags.Definitions.Common;
 using static TagTool.Tags.TagFieldFlags;
 
 namespace TagTool.Tags.Definitions.Gen2
@@ -100,7 +99,7 @@ namespace TagTool.Tags.Definitions.Gen2
         public List<OldObjectFunctionBlock> OldFunctions;
         public List<ObjectChangeColors> ChangeColors;
         public List<PredictedResourceBlock> PredictedResources;
-        public UnitFlagBits UnitFlags;
+        public FlagsValue1 Flags1;
         public DefaultTeamValue DefaultTeam;
         public ConstantSoundVolumeValue ConstantSoundVolume;
         [TagField(ValidTags = new [] { "effe" })]
@@ -161,14 +160,8 @@ namespace TagTool.Tags.Definitions.Gen2
         public CachedTag MeleeDamage;
         public UnitBoardingMeleeStructBlock YourMomma;
         public MotionSensorBlipSizeValue MotionSensorBlipSize;
-        [TagField(Length = 0x2, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
+        [TagField(Length = 0x2, Flags = TagFieldFlags.Padding)]
         public byte[] Padding4;
-
-        [TagField(Platform = CachePlatform.MCC)]
-        public MetagameBucket.CampaignMetagameBucketType MetagameType;
-        [TagField(Platform = CachePlatform.MCC)]
-        public MetagameBucket.CampaignMetagameBucketClass MetagameClassification;
-
         public List<UnitPosturesBlock> Postures;
         public List<UnitHudReferenceBlock> NewHudInterfaces;
         public List<DialogueVariantBlock> DialogueVariants;
@@ -510,7 +503,7 @@ namespace TagTool.Tags.Definitions.Gen2
         }
         
         [Flags]
-        public enum UnitFlagBits : uint
+        public enum FlagsValue1 : uint
         {
             CircularAiming = 1 << 0,
             DestroyedAfterDying = 1 << 1,
@@ -1102,21 +1095,18 @@ namespace TagTool.Tags.Definitions.Gen2
                     Destroyed
                 }
             }
-
-            [TagStructure(Size = 0x2A0, MaxVersion = CacheVersion.Halo2Xbox)]
-            [TagStructure(Size = 0xF0, MinVersion = CacheVersion.Halo2PC, Platform = CachePlatform.Original)]
-            [TagStructure(Size = 0x130, MinVersion = CacheVersion.Halo2PC, Platform = CachePlatform.MCC)]
+            
+            [TagStructure(Size = 0x120)]
             public class VehiclePhantomShapeBlock : TagStructure
             {
-                public PlatformUnsignedValue Address;
+                [TagField(Length = 0x4)]
+                public byte[] Unknown;
                 public short Size;
                 public short Count;
-                [TagField(Length = 0x4, Flags = TagFieldFlags.Padding)]
-                public byte[] Padding;
-                [TagField(Platform = CachePlatform.MCC, Flags = TagFieldFlags.Padding, Length = 0x8)]
-                public byte[] PaddingMCC;
                 [TagField(Length = 0x4)]
-                public PlatformUnsignedValue UserData;
+                public byte[] Unknown1;
+                [TagField(Length = 0x4)]
+                public byte[] Unknown2;
                 public int ChildShapesSize;
                 public int ChildShapesCapacity;
                 [TagField(Length = 4)]
@@ -1124,18 +1114,16 @@ namespace TagTool.Tags.Definitions.Gen2
                 public int MultisphereCount;
                 public FlagsValue Flags;
                 [TagField(Length = 0x8, Flags = TagFieldFlags.Padding)]
-                public byte[] Padding1;
+                public byte[] Padding;
                 public float X0;
                 public float X1;
                 public float Y0;
                 public float Y1;
                 public float Z0;
                 public float Z1;
-                [TagField(MinVersion = CacheVersion.Halo2PC)]
-                public NumSpheresDatum ChildShape;
                 [TagField(Length = 8)]
                 public MultiSphereShape[] Multispheres;
-                [TagField(Length = 4, MaxVersion = CacheVersion.Halo2Xbox)]
+                [TagField(Length = 4)]
                 public NumSpheresDatum[] ChildShapes;
                 
                 public enum ShapeTypeValue : short
@@ -1158,17 +1146,12 @@ namespace TagTool.Tags.Definitions.Gen2
                     Mopp
                 }
                 
-                [TagStructure(Size = 0x8, Platform = CachePlatform.Original)]
-                [TagStructure(Size = 0x10, Platform = CachePlatform.MCC)]
+                [TagStructure(Size = 0x8)]
                 public class CollisionFilterDatum : TagStructure
                 {
                     public ShapeTypeValue ShapeType;
                     public short Shape;
-                    [TagField(Length = 4, Platform = CachePlatform.MCC, Flags = TagFieldFlags.Padding)]
-                    public byte[] Padding;
                     public int CollisionFilter;
-                    [TagField(Length = 4, Platform = CachePlatform.MCC, Flags = TagFieldFlags.Padding)]
-                    public byte[] Padding1;
                 }
                 
                 [Flags]
@@ -1184,19 +1167,16 @@ namespace TagTool.Tags.Definitions.Gen2
                     public RealQuaternion Sphere;
                 }
                 
-                [TagStructure(Size = 0x10, Platform = CachePlatform.Original)]
-                [TagStructure(Size = 0x20, Platform = CachePlatform.MCC)]
+                [TagStructure(Size = 0x10)]
                 public class NumSpheresDatum : TagStructure
                 {
-                    public PlatformUnsignedValue Address;
-                    public short Size;
-                    public short Count;
-                    [TagField(Length = 4, Platform = CachePlatform.MCC, Flags = TagFieldFlags.Padding)]
-                    public byte[] Padding;
-                    public PlatformUnsignedValue UserData;
+                    [TagField(Length = 0x4)]
+                    public byte[] Unknown3;
+                    public short Size1;
+                    public short Count1;
+                    [TagField(Length = 0x4)]
+                    public byte[] Unknown31;
                     public int NumSpheres;
-                    [TagField(Length = 4, Platform = CachePlatform.MCC, Flags = TagFieldFlags.Padding)]
-                    public byte[] Padding1;
                 }
             }
         }

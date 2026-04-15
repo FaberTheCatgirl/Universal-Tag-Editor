@@ -188,15 +188,12 @@ namespace TagTool.Commands.Tags
 
         void VerifyStringId(StringId stringId)
         {
+            if (stringId == StringId.Invalid || stringId.Value == 0xffffffff)
+                return;
+
             try
             {
-                string stringValue = Cache.StringTable.GetString(stringId);
-                StringId resolvedStringId = Cache.StringTable.GetStringId(stringValue);
-                if (stringValue == null)
-                    AddProblem($"Invalid StringId: {CurrentFieldPath} {stringId}");
-
-                if (resolvedStringId != stringId)
-                    AddProblem($"StringIdResolver returned a different string id for '{stringValue}' {stringId} | {resolvedStringId}");
+                Cache.StringTable.GetString(stringId);
             }
             catch
             {

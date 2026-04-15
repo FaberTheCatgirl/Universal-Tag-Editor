@@ -11,9 +11,6 @@ using TagTool.Shaders.ShaderFunctions;
 using HaloShaderGenerator.Shader;
 using static TagTool.Tags.Definitions.RenderMethod.RenderMethodPostprocessBlock;
 using TagTool.Shaders.ShaderGenerator;
-using TagTool.Common.Logging;
-using TagTool.Common;
-using System.Threading.Tasks;
 
 namespace TagTool.Commands.Shaders
 {
@@ -71,7 +68,7 @@ namespace TagTool.Commands.Shaders
 
                 "Generates a shader template\n" +
                 "<shader type> - Specify shader type, EX. \"shader\" for \'rmsh\'.\n" +
-                "Use \"explicit\" for explicit shaders (ps+vs), \"chud\" for chud (ps+vs), and \"glvs\" or \"glps\" for global shaders.\n" +
+                "Use \"explicit\" for explicit shaders, and \"glvs\" or \"glps\" for global shaders.\n" +
                 "<options> - Specify the template\'s options as either integers or by names.\n" +
                 "For explicit shaders, you should specify the name or the rasg shader index.")
         {
@@ -202,7 +199,9 @@ namespace TagTool.Commands.Shaders
 
             foreach (var register in generatorResult.Registers)
             {
-                StringId nameId = cache.StringTable.GetOrAddString(register.Name);
+                var nameId = cache.StringTable.GetStringId(register.Name);
+                if (nameId == TagTool.Common.StringId.Invalid)
+                    nameId = cache.StringTable.AddString(register.Name);
 
                 ShaderParameter.RType rType = (ShaderParameter.RType)Enum.Parse(typeof(ShaderParameter.RType), register.registerType.ToString());
 
@@ -226,17 +225,8 @@ namespace TagTool.Commands.Shaders
             {
                 var rasg = Cache.Deserialize<RasterizerGlobals>(stream, Cache.TagCache.GetTag("globals\\rasterizer_globals.rasterizer_globals"));
 
-                CachedTag pixlTag;
-                if (rasg.DefaultShaders[(int)value].PixelShader != null)
-                    pixlTag = Cache.TagCache.GetTag(rasg.DefaultShaders[(int)value].PixelShader.Index);
-                else
-                    pixlTag = Cache.TagCache.AllocateTag<PixelShader>($"rasterizer\\shaders\\{value}");
-
-                CachedTag vtshTag;
-                if (rasg.DefaultShaders[(int)value].VertexShader != null)
-                    vtshTag = Cache.TagCache.GetTag(rasg.DefaultShaders[(int)value].VertexShader.Index);
-                else
-                    vtshTag = Cache.TagCache.AllocateTag<VertexShader>($"rasterizer\\shaders\\{value}");
+                CachedTag pixlTag = rasg.DefaultShaders[(int)value].PixelShader ?? Cache.TagCache.AllocateTag<PixelShader>($"rasterizer\\shaders\\{value}");
+                CachedTag vtshTag = rasg.DefaultShaders[(int)value].VertexShader ?? Cache.TagCache.AllocateTag<VertexShader>($"rasterizer\\shaders\\{value}");
 
                 ShaderGeneratorNew.GenerateExplicitShader(Cache, stream, value.ToString(), out PixelShader pixl, out VertexShader vtsh);
 
@@ -250,12 +240,6 @@ namespace TagTool.Commands.Shaders
 
         private object GenerateChudShader(string shader)
         {
-            if (shader == "chud_overlay_blend")
-            {
-                Log.Warning("chud_overlay_blend is not a chud shader - compile as explicit");
-                return true;
-            }
-
             if (!Enum.TryParse(shader, out HaloShaderGenerator.Globals.ChudShader value))
             {
                 if (!int.TryParse(shader, out int intValue))
@@ -263,26 +247,22 @@ namespace TagTool.Commands.Shaders
                 value = (HaloShaderGenerator.Globals.ChudShader)intValue;
             }
 
+            // TODO: write register info to tag
+            // TODO: vtsh support
+            // TODO: entry point support
+            // TODO: failsafes
+
             using (var stream = Cache.OpenCacheReadWrite())
             {
-                var matg = Cache.Deserialize<Globals>(stream, Cache.TagCache.FindFirstInGroup("matg"));
-                var chgd = Cache.Deserialize<ChudGlobalsDefinition>(stream, matg.InterfaceTags[0].HudGlobals);
+                var result = GenericPixelShaderGenerator.GeneratePixelShader(value.ToString(), HaloShaderGenerator.Globals.ShaderStage.Default.ToString().ToLower(), true);
 
-                CachedTag pixlTag;
-                if (chgd.HudShaders[(int)value].PixelShader != null)
-                    pixlTag = Cache.TagCache.GetTag(chgd.HudShaders[(int)value].PixelShader.Index);
-                else
-                    pixlTag = Cache.TagCache.AllocateTag<PixelShader>($"rasterizer\\shaders\\{value}");
+                int pixelShaderIndex = 0; // TODO
 
-                CachedTag vtshTag;
-                if (chgd.HudShaders[(int)value].VertexShader != null)
-                    vtshTag = Cache.TagCache.GetTag(chgd.HudShaders[(int)value].VertexShader.Index);
-                else
-                    vtshTag = Cache.TagCache.AllocateTag<VertexShader>($"rasterizer\\shaders\\{value}");
+                CachedTag pixlTag = Cache.TagCache.GetTag($@"rasterizer\shaders\{value}.pixl");
+                var pixl = Cache.Deserialize<PixelShader>(stream, pixlTag);
 
-                ShaderGeneratorNew.GenerateChudShader(Cache, stream, value.ToString(), out PixelShader pixl, out VertexShader vtsh);
+                pixl.Shaders[pixelShaderIndex].PCShaderBytecode = result.Bytecode;
 
-                Cache.Serialize(stream, vtshTag, vtsh);
                 Cache.Serialize(stream, pixlTag, pixl);
             }
 
@@ -299,40 +279,19 @@ namespace TagTool.Commands.Shaders
                 CachedTag rmdfTag = Cache.TagCache.GetTag($"shaders\\{shaderType}.rmdf");
                 RenderMethodDefinition rmdf = Cache.Deserialize<RenderMethodDefinition>(stream, rmdfTag);
 
-                // recompile the global shaders
-                GlobalVertexShader glvs;
-                GlobalPixelShader glps;
                 if (pixel)
                 {
-                    glvs = Cache.Deserialize<GlobalVertexShader>(stream, rmdf.GlobalVertexShader);
-                    glps = ShaderGeneratorNew.GenerateSharedPixelShaders(Cache, rmdf, type);
-                    CachedTag glpsTag = Cache.TagCache.GetTag(rmdf.GlobalPixelShader.Index);
-                    Cache.Serialize(stream, glpsTag, glps);
+                    GlobalPixelShader glps = TagTool.Shaders.ShaderGenerator.ShaderGeneratorNew.GenerateSharedPixelShaders(Cache, rmdf, type);
+                    Cache.Serialize(stream, rmdf.GlobalPixelShader, glps);
                 }
                 else
                 {
-                    glvs = ShaderGeneratorNew.GenerateSharedVertexShaders(Cache, rmdf, type);
-                    glps = Cache.Deserialize<GlobalPixelShader>(stream, rmdf.GlobalPixelShader);
-                    CachedTag glvsTag = Cache.TagCache.GetTag(rmdf.GlobalVertexShader.Index);
-                    Cache.Serialize(stream, glvsTag, glvs);
+                    GlobalVertexShader glvs = TagTool.Shaders.ShaderGenerator.ShaderGeneratorNew.GenerateSharedVertexShaders(Cache, rmdf, type);
+                    Cache.Serialize(stream, rmdf.GlobalVertexShader, glvs);
                 }
-                Console.WriteLine($"Generated global {(pixel ? "pixel" : "vertex")} shader for {shaderType}");
-
-                // recompile templates
-                if (type == HaloShaderGenerator.Globals.ShaderType.Decal ||
-                    type == HaloShaderGenerator.Globals.ShaderType.Water ||
-                    type == HaloShaderGenerator.Globals.ShaderType.Particle ||
-                    type == HaloShaderGenerator.Globals.ShaderType.LightVolume ||
-                    type == HaloShaderGenerator.Globals.ShaderType.Beam ||
-                    type == HaloShaderGenerator.Globals.ShaderType.Contrail)
-                {
-                    RecompileTemplates(Cache, stream, shaderType, rmdf, glvs, glps);
-                }
-
-                Cache.SaveStrings();
-                (Cache as GameCacheHaloOnlineBase).SaveTagNames();
             }
 
+            Console.WriteLine($"Generated global {(pixel ? "pixel" : "vertex")} shader for {shaderType}");
             return true;
         }
 
@@ -644,16 +603,6 @@ namespace TagTool.Commands.Shaders
             public RenderMethodTemplate Template;
         }
 
-        public struct SExplicitRecompileInfo
-        {
-            public CachedTag PixelTag;
-            public CachedTag VertexTag;
-            public bool IsChud;
-            public PixelShader PixelShader;
-            public VertexShader VertexShader;
-            public string ExplicitName;
-        }
-
         /// <summary>
         /// For async recompile
         /// </summary>
@@ -940,119 +889,6 @@ namespace TagTool.Commands.Shaders
             //    Console.WriteLine($"Corrected {dependentRenderMethods.Count} render method{(dependentRenderMethods.Count > 1 ? "s" : "")}");
         }
 
-        public static void RecompileTemplates(GameCache cache, Stream stream, string shaderType, RenderMethodDefinition rmdf, GlobalVertexShader glvs, GlobalPixelShader glps)
-        {
-            // get templates for this shader type
-            List<CachedTag> regenTags = new List<CachedTag>();
-            foreach (var tag in cache.TagCache.NonNull())
-            {
-                if (tag.Group.Tag != "rmt2" ||
-                    tag.Name.StartsWith("ms30") ||
-                    !tag.Name.Split('\\')[1].StartsWith(shaderType + "_templates"))
-                    continue;
-                regenTags.Add(tag);
-            }
-
-            // build recompile info
-            List<STemplateRecompileInfo> recompileInfo = new List<STemplateRecompileInfo>();
-            foreach (var tag in regenTags)
-            {
-                List<byte> options = new List<byte>();
-                foreach (var option in tag.Name.Split('\\')[2].Remove(0, 1).Split('_'))
-                    options.Add(byte.Parse(option));
-                while (options.Count < rmdf.Categories.Count)
-                    options.Add(0);
-                var aOptions = options.ToArray();
-
-                STemplateRecompileInfo info = new STemplateRecompileInfo
-                {
-                    Name = $"shaders\\{shaderType}_templates\\_{string.Join("_", aOptions)}",
-                    ShaderType = shaderType,
-                    Options = aOptions,
-                    Tag = tag,
-                    Dependants = GetDependantsAsync(cache, stream, shaderType, aOptions),
-                    AllRmopParameters = ShaderGeneratorNew.GatherParameters(cache, stream, rmdf, aOptions)
-                };
-
-                recompileInfo.Add(info);
-            }
-
-            // recompile templates
-            List<Task<STemplateRecompileInfo>> tasks = new List<Task<STemplateRecompileInfo>>();
-            foreach (var info in recompileInfo)
-            {
-                Task<STemplateRecompileInfo> generatorTask = Task.Run(() => {
-                    return GenerateRenderMethodTemplateAsync(cache, info, rmdf, glvs, glps);
-                });
-                tasks.Add(generatorTask);
-            }
-
-            float percentageComplete = 0.00f;
-            Console.Write($"\rRecompiling {shaderType} templates... {string.Format("{0:0.00}", percentageComplete)}%");
-
-            int completed = 0;
-            while (completed != tasks.Count)
-            {
-                int count = tasks.FindAll(x => x.IsCompleted).Count;
-                if (count > completed)
-                {
-                    completed = count;
-
-                    percentageComplete = ((float)count / (float)tasks.Count) * 100.0f;
-                    Console.Write($"\rRecompiling {shaderType} templates... {string.Format("{0:0.00}", percentageComplete)}%");
-                }
-
-                System.Threading.Thread.Sleep(250); // wait to prevent constant cli writes
-            }
-
-            Console.Write($"\rSuccessfully recompiled {tasks.Count} {shaderType} templates. Serializing...");
-
-            // serialize
-            foreach (var task in tasks)
-            {
-                if (!cache.TagCache.TryGetTag(task.Result.Name + ".pixl", out task.Result.Template.PixelShader))
-                    task.Result.Template.PixelShader = cache.TagCache.AllocateTag<PixelShader>(task.Result.Name);
-                if (!cache.TagCache.TryGetTag(task.Result.Name + ".vtsh", out task.Result.Template.VertexShader))
-                    task.Result.Template.VertexShader = cache.TagCache.AllocateTag<VertexShader>(task.Result.Name);
-
-                cache.Serialize(stream, task.Result.Template.PixelShader, task.Result.PixelShader);
-                cache.Serialize(stream, task.Result.Template.VertexShader, task.Result.VertexShader);
-                cache.Serialize(stream, task.Result.Tag, task.Result.Template);
-
-                (cache as GameCacheHaloOnlineBase).SaveTagNames();
-
-                ReserializeDependantsAsync(cache, stream, task.Result.Template, task.Result.Dependants);
-            }
-
-            Console.Write($"\rSuccessfully recompiled {tasks.Count} {shaderType} templates. Serializing... Done");
-            Console.WriteLine();
-
-            // validation
-            foreach (var task in tasks)
-            {
-                var rmt2 = cache.Deserialize<RenderMethodTemplate>(stream, task.Result.Tag);
-                var pixl = cache.Deserialize<PixelShader>(stream, rmt2.PixelShader);
-
-                if (rmt2.PixelShader.Name == null || rmt2.PixelShader.Name == "")
-                    Log.Warning($"pixel_shader {rmt2.PixelShader.Index:X16} has no name");
-
-                for (int i = 0; i < pixl.EntryPointShaders.Count; i++)
-                {
-                    bool entryNeeded = rmdf.EntryPoints.Any(x => (int)x.EntryPoint == i) &&
-                        (glps.EntryPoints[i].DefaultCompiledShaderIndex == -1 && glps.EntryPoints[i].CategoryDependency.Count == 0);
-
-                    if (pixl.EntryPointShaders[i].Count > 0 && !entryNeeded)
-                        Log.Warning($"{rmt2.PixelShader.Name} has unneeded entry point shader {(TagTool.Shaders.EntryPoint)i}");
-
-                    if (pixl.EntryPointShaders[i].Count == 0 && entryNeeded)
-                        Log.Warning($"{rmt2.PixelShader.Name} missing entry point shader {(TagTool.Shaders.EntryPoint)i}");
-
-                    if (pixl.EntryPointShaders[i].Count > 0 && pixl.EntryPointShaders[i].Offset >= pixl.Shaders.Count)
-                        Log.Warning($"{rmt2.PixelShader.Name} has invalid compiled shader indices {i}");
-                }
-            }
-        }
-
         /// <summary>
         /// For async recompile.
         /// 
@@ -1072,22 +908,6 @@ namespace TagTool.Commands.Shaders
                 recompileInfo.AllRmopParameters, recompileInfo.Name, out recompileInfo.PixelShader, out recompileInfo.VertexShader);
 
             return recompileInfo;
-        }
-
-        public static SExplicitRecompileInfo GenerateExplicitShaderAsync(GameCache cache, SExplicitRecompileInfo info)
-        {
-            Stream fakeStream = null;// unused atm
-
-            if (info.IsChud)
-            {
-                ShaderGeneratorNew.GenerateChudShader(cache, fakeStream, info.ExplicitName, out info.PixelShader, out info.VertexShader);
-            }
-            else
-            {
-                ShaderGeneratorNew.GenerateExplicitShader(cache, fakeStream, info.ExplicitName, out info.PixelShader, out info.VertexShader);
-            }
-
-            return info;
         }
     }
 }

@@ -2,7 +2,7 @@ using TagTool.Common;
 
 namespace TagTool.Geometry
 {
-    public struct WorldVertex
+    public class WorldVertex
     {
         public RealQuaternion Position { get; set; }
         public RealVector2d Texcoord { get; set; }
@@ -11,7 +11,7 @@ namespace TagTool.Geometry
         public RealVector3d Binormal { get; set; }
     }
 
-    public struct RigidVertex
+    public class RigidVertex
     {
         public RealQuaternion Position { get; set; }
         public RealVector2d Texcoord { get; set; }
@@ -20,43 +20,7 @@ namespace TagTool.Geometry
         public RealVector3d Binormal { get; set; }
     }
 
-    public struct SkinnedVertex
-    {
-        public RealQuaternion Position { get; set; }
-        public RealVector2d Texcoord { get; set; }
-        public RealVector3d Normal { get; set; }
-        public RealQuaternion Tangent { get; set; }
-        public RealVector3d Binormal { get; set; }
-        public byte[] BlendIndices { get; set; }
-        public float[] BlendWeights { get; set; }
-    }
-
-    public struct ParticleModelVertex
-    {
-        public RealVector3d Position { get; set; }
-        public RealVector2d Texcoord { get; set; }
-        public RealVector3d Normal { get; set; }
-    }
-
-    public struct FlatWorldVertex
-    {
-        public RealQuaternion Position { get; set; }
-        public RealVector2d Texcoord { get; set; }
-        public RealVector3d Normal { get; set; }
-        public RealQuaternion Tangent { get; set; }
-        public RealVector3d Binormal { get; set; }
-    }
-
-    public struct FlatRigidVertex
-    {
-        public RealQuaternion Position { get; set; }
-        public RealVector2d Texcoord { get; set; }
-        public RealVector3d Normal { get; set; }
-        public RealQuaternion Tangent { get; set; }
-        public RealVector3d Binormal { get; set; }
-    }
-
-    public struct FlatSkinnedVertex
+    public class SkinnedVertex
     {
         public RealQuaternion Position { get; set; }
         public RealVector2d Texcoord { get; set; }
@@ -67,33 +31,69 @@ namespace TagTool.Geometry
         public float[] BlendWeights { get; set; }
     }
 
-    public struct ScreenVertex
+    public class ParticleModelVertex
+    {
+        public RealVector3d Position { get; set; }
+        public RealVector2d Texcoord { get; set; }
+        public RealVector3d Normal { get; set; }
+    }
+
+    public class FlatWorldVertex
+    {
+        public RealQuaternion Position { get; set; }
+        public RealVector2d Texcoord { get; set; }
+        public RealVector3d Normal { get; set; }
+        public RealQuaternion Tangent { get; set; }
+        public RealVector3d Binormal { get; set; }
+    }
+
+    public class FlatRigidVertex
+    {
+        public RealQuaternion Position { get; set; }
+        public RealVector2d Texcoord { get; set; }
+        public RealVector3d Normal { get; set; }
+        public RealQuaternion Tangent { get; set; }
+        public RealVector3d Binormal { get; set; }
+    }
+
+    public class FlatSkinnedVertex
+    {
+        public RealQuaternion Position { get; set; }
+        public RealVector2d Texcoord { get; set; }
+        public RealVector3d Normal { get; set; }
+        public RealQuaternion Tangent { get; set; }
+        public RealVector3d Binormal { get; set; }
+        public byte[] BlendIndices { get; set; }
+        public float[] BlendWeights { get; set; }
+    }
+
+    public class ScreenVertex
     {
         public RealVector2d Position { get; set; }
         public RealVector2d Texcoord { get; set; }
         public uint Color { get; set; }
     }
 
-    public struct DebugVertex
+    public class DebugVertex
     {
         public RealVector3d Position { get; set; }
         public uint Color { get; set; }
     }
 
-    public struct TransparentVertex
+    public class TransparentVertex
     {
         public RealVector3d Position { get; set; }
         public RealVector2d Texcoord { get; set; }
         public uint Color { get; set; }
     }
 
-    public struct ParticleVertex
+    public class ParticleVertex
     {
         public RealVector2d Position { get; set; }
         public RealVector2d Texcoord { get; set; }
     }
 
-    public struct ContrailVertex
+    public class ContrailVertex
     {
         public RealQuaternion Position { get; set; }
         public RealQuaternion Position2 { get; set; }
@@ -106,32 +106,32 @@ namespace TagTool.Geometry
         public RealQuaternion Position4 { get; set; }
     }
 
-    public struct LightVolumeVertex
+    public class LightVolumeVertex
     {
         public short[] Texcoord { get; set; }
     }
 
-    public struct ChudVertexSimple
+    public class ChudVertexSimple
     {
         public RealVector2d Position { get; set; }
         public RealVector2d Texcoord { get; set; }
     }
 
-    public struct ChudVertexFancy
+    public class ChudVertexFancy
     {
         public RealVector3d Position { get; set; }
         public uint Color { get; set; }
         public RealVector2d Texcoord { get; set; }
     }
 
-    public struct DecoratorVertex
+    public class DecoratorVertex
     {
         public RealQuaternion Position { get; set; }
         public RealVector2d Texcoord { get; set; }
         public RealQuaternion Normal { get; set; }
     }
 
-    public struct TinyPositionVertex
+    public class TinyPositionVertex
     {
         public RealVector3d Position { get; set; }
         public ushort Variant { get; set; } // type index (high 8 bits), motion scale (low 8 bits)
@@ -139,13 +139,13 @@ namespace TagTool.Geometry
         public uint Color { get; set; }
     }
 
-    public struct PatchyFogVertex
+    public class PatchyFogVertex
     {
         public RealQuaternion Position { get; set; }
         public RealVector2d Texcoord { get; set; }
     }
 
-    public struct WaterVertex
+    public class WaterVertex
     {
         public RealQuaternion Position { get; set; }
         public RealQuaternion Position2 { get; set; }
@@ -165,7 +165,7 @@ namespace TagTool.Geometry
         public RealVector3d Texcoord3 { get; set; }
     }
 
-    public struct RippleVertex
+    public class RippleVertex
     {
         public RealQuaternion Position { get; set; }
         public RealQuaternion Texcoord { get; set; }
@@ -178,13 +178,13 @@ namespace TagTool.Geometry
         public short[] Texcoord6 { get; set; }
     }
 
-    public struct ImplicitVertex
+    public class ImplicitVertex
     {
         public RealVector3d Position { get; set; }
         public RealVector2d Texcoord { get; set; }
     }
 
-    public struct BeamVertex
+    public class BeamVertex
     {
         public RealQuaternion Position { get; set; }
         public RealQuaternion Texcoord { get; set; }
@@ -194,7 +194,7 @@ namespace TagTool.Geometry
         public short[] Texcoord3 { get; set; }
     }
 
-    public struct DualQuatVertex
+    public class DualQuatVertex
     {
         public RealQuaternion Position { get; set; }
         public RealVector2d Texcoord { get; set; }
@@ -205,12 +205,12 @@ namespace TagTool.Geometry
         public float[] BlendWeights { get; set; }
     }
 
-    public struct StaticPerVertexColorData
+    public class StaticPerVertexColorData
     {
         public RealVector3d Color { get; set; }
     }
 
-    public struct StaticPerPixelData
+    public class StaticPerPixelData
     {
         public RealVector2d Texcoord { get; set; }
     }
@@ -218,7 +218,7 @@ namespace TagTool.Geometry
     /// <summary>
     /// Each color is some form of RGBE, engine converts it to rgb. Color 4,5 seem unused
     /// </summary>
-    public struct StaticPerVertexData
+    public class StaticPerVertexData
     {
         public uint Color1 { get; set; }
         public uint Color2 { get; set; }
@@ -227,30 +227,30 @@ namespace TagTool.Geometry
         public uint Color5 { get; set; }
     }
 
-    public struct AmbientPrtData
+    public class AmbientPrtData
     {
         public float SHCoefficient { get; set; }
     }
 
-    public struct LinearPrtData
+    public class LinearPrtData
     {
         public RealQuaternion SHCoefficients { get; set; }
     }
 
-    public struct QuadraticPrtData
+    public class QuadraticPrtData
     {
         public RealVector3d SHCoefficients1 { get; set; }
         public RealVector3d SHCoefficients2 { get; set; }
         public RealVector3d SHCoefficients3 { get; set; }
     }
 
-    public struct WaterTriangleIndices
+    public class WaterTriangleIndices
     {
         public ushort[] MeshIndices { get; set; }
         public ushort[] WaterIndices { get; set; }
     }
 
-    public struct WaterTesselatedParameters
+    public class WaterTesselatedParameters
     {
         public RealVector2d LocalInfo { get; set; }
         public float LocalInfoPadd;
@@ -258,13 +258,8 @@ namespace TagTool.Geometry
         public float BaseTexPadd;
     }
 
-    public struct WorldWaterVertex
+    public class WorldWaterVertex : WorldVertex
     {
-        public RealQuaternion Position { get; set; }
-        public RealVector2d Texcoord { get; set; }
-        public RealVector3d Normal { get; set; }
-        public RealQuaternion Tangent { get; set; }
-        public RealVector3d Binormal { get; set; }
         public RealVector2d StaticPerPixel;
     }
 }

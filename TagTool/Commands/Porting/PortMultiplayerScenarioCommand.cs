@@ -9,15 +9,14 @@ using TagTool.Common;
 using TagTool.Commands.Common;
 using TagTool.IO;
 using TagTool.Tags.Definitions;
+using static TagTool.Commands.Porting.PortTagCommand;
+using static TagTool.Tags.Definitions.Scenario;
 using System.Collections;
 using TagTool.Tags;
 using System.ComponentModel;
 using System.Text;
 using System.Reflection;
 using TagTool.Tags.Definitions.Common;
-using TagTool.Porting;
-using static TagTool.Tags.Definitions.Scenario;
-using TagTool.Porting.Gen3;
 
 namespace TagTool.Commands.Porting
 {
@@ -25,7 +24,6 @@ namespace TagTool.Commands.Porting
     {
         private GameCacheHaloOnlineBase CacheContext { get; }
         private GameCache BlamCache { get; }
-        private PortingContextGen3 PortContext { get; }
 
         [Flags]
         public enum MultiplayerScenarioConversionFlags
@@ -40,13 +38,11 @@ namespace TagTool.Commands.Porting
             SpawnPoint = (1 << 5),
             [Description("Keep path finding data")]
             PathFinding = (1 << 6),
-            [Description("Ported scenario will use levels\\custom\\")]
-            CustomScenarioPath = (1 << 7),
 
-			Default = Objects | DeviceObjects | SpawnPoint | CustomScenarioPath
+			Default = Objects | DeviceObjects | SpawnPoint
         }
 
-        public PortMultiplayerScenarioCommand(GameCacheHaloOnlineBase cacheContext, GameCache blamCache, PortingContextGen3 portContext) :
+        public PortMultiplayerScenarioCommand(GameCacheHaloOnlineBase cacheContext, GameCache blamCache, PortTagCommand portTag) :
             base(true,
 
                 "PortMultiplayerScenario",
@@ -58,7 +54,6 @@ namespace TagTool.Commands.Porting
         {
             CacheContext = cacheContext;
             BlamCache = blamCache;
-            PortContext = portContext;
         }
 
         private static string BuildHelpText()
@@ -99,8 +94,6 @@ namespace TagTool.Commands.Porting
             using (var blamStream = BlamCache.OpenCacheRead())
             using (var cacheStream = CacheContext.OpenCacheReadWrite())
             {
-                using var portingScope = PortContext.CreateScope(portingFlags);
-
                 var blamScnr = BlamCache.Deserialize<Scenario>(blamStream, blamScnrTag);
 
                 Dictionary<string, int> structureBspsByName = new Dictionary<string, int>();
@@ -109,12 +102,9 @@ namespace TagTool.Commands.Porting
                 Console.WriteLine("Enter the scenario name:");
                 var scenarioName = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), IgnoreArgumentVariables);
                 if (!Regex.IsMatch(scenarioName, "[a-z0-9_]+"))
-                    return new TagToolError(CommandError.CustomError, "Scenario name must consist of lowercase alphanumeric characters and underscores");
+                    return new TagToolError(CommandError.CustomMessage, "Scenario name must consist of lowercase alphanumeric characters and underscores");
 
-                if (conversionFlags.HasFlag(MultiplayerScenarioConversionFlags.CustomScenarioPath))
-                    scenarioPath = $@"levels\custom\{scenarioName}\{scenarioName}";
-                else
-                    scenarioPath = blamScnrTag.Name;
+                scenarioPath = $@"levels\custom\{scenarioName}\{scenarioName}";
 
                 //
                 // try to parse the map id, if not use the randomly generated one unless it's actually invalid/out of range
@@ -134,7 +124,7 @@ namespace TagTool.Commands.Porting
                 if (int.TryParse(mapIdInput, out tmpMapId))
                 {
                     if (tmpMapId < kMinMapId || tmpMapId > kMaxMapId)
-                        return new TagToolError(CommandError.CustomError, "Map ID out of range");
+                        return new TagToolError(CommandError.CustomMessage, "Map ID out of range");
 				}
                 else
                 {
@@ -147,12 +137,12 @@ namespace TagTool.Commands.Porting
                 Console.WriteLine("Enter the map name (for display):");
                 var mapName = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), IgnoreArgumentVariables);
                 if (mapName.Length >= 4 && mapName.Length > 15)
-                    return new TagToolError(CommandError.CustomError, "Map name must be at 4 to 15 characters");
+                    return new TagToolError(CommandError.CustomMessage, "Map name must be at 4 to 15 characters");
 
                 Console.WriteLine("Enter the map description:");
                 var mapDescription = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), IgnoreArgumentVariables);
                 if (mapDescription.Length > 127)
-                    return new TagToolError(CommandError.CustomError, "Map description must be no longer than 127 characters");
+                    return new TagToolError(CommandError.CustomMessage, "Map description must be no longer than 127 characters");
 
                 Console.WriteLine("-----------------------------------------");
                 for (int i = 0; i < blamScnr.ZoneSets.Count; i++)
@@ -180,7 +170,7 @@ namespace TagTool.Commands.Porting
                 }
 
                 if (zoneSetIndex == -1)
-                    return new TagToolError(CommandError.CustomError, $"Zone set '{zoneSetName}' could not be found!\n");
+                    return new TagToolError(CommandError.CustomMessage, $"Zone set '{zoneSetName}' could not be found!\n");
 
                 var zoneSet = blamScnr.ZoneSets[zoneSetIndex];
 
@@ -234,6 +224,10 @@ namespace TagTool.Commands.Porting
                 // generate the .map file
                 GenerateMapFile(cacheStream, CacheContext, CacheContext.TagCache.GetTag($"{scenarioPath}.scnr"), mapName, mapDescription);
 
+                // finish up
+                CacheContext.SaveStrings();
+                CacheContext.SaveTagNames();
+
                 Console.WriteLine("Done.");
                 return true;
             }
@@ -255,10 +249,7 @@ namespace TagTool.Commands.Porting
                 if (arg.Length > 1)
                 {
                     not = arg[0] == '!';
-                    if (not)
-                        flagName = arg.Substring(1);
-                    else 
-                        flagName = arg;
+                    flagName = arg.Substring(1);
                 }
 
 
@@ -433,16 +424,20 @@ namespace TagTool.Commands.Porting
             string scenarioPath, int mapId, Scenario scnr, CachedTag scnrTag, int zoneSetIndex, uint includeBspMask,
             MultiplayerScenarioConversionFlags conversionFlags, PortingFlags portingFlags)
         {
+            var resourceStreams = new Dictionary<TagTool.Common.ResourceLocation, Stream>();
+            
             using (var tagRenamer = new TagRenamerScope())
             {
-                PortContext.Flags = portingFlags;
+                var porttag = new PortTagCommand(destCache, srcCache);
+                porttag.SetFlags(portingFlags);
+                porttag.InitializeSoundConverter();
 
                 var sldtTag = scnr.Lightmap;
                 tagRenamer.Rename(sldtTag, $"{scenarioPath}_faux_lightmap");
                 var sldt = (ScenarioLightmap)srcCache.Deserialize(srcStream, sldtTag);
                 ConvertLightmap(srcCache.Version, srcStream, sldt, includeBspMask);
-                sldt = (ScenarioLightmap)PortContext.ConvertData(destStream, srcStream, sldt, sldt, sldtTag.Name);
-                sldt = PortContext.ConvertScenarioLightmap(destStream, srcStream, sldtTag.Name, sldt);
+                sldt = (ScenarioLightmap)porttag.ConvertData(destStream, srcStream, resourceStreams, sldt, sldt, sldtTag.Name);
+                sldt = porttag.ConvertScenarioLightmap(destStream, srcStream, resourceStreams, sldtTag.Name, sldt);
 
                 FixupLightmapBpsData(destCache, destStream, sldt);
                 sldtTag = CreateOrReplaceTag<Scenario>(destCache, sldtTag.Name);
@@ -458,8 +453,8 @@ namespace TagTool.Commands.Porting
                     tagRenamer.Rename(scnr.StructureBsps[i].StructureBsp, $"{scenarioPath}_bsp_{i}");
 
                 scnr.Lightmap = null;
-                scnr = (Scenario)PortContext.ConvertData(destStream, srcStream, scnr, scnr, scnrTag.Name);
-                scnr = PortContext.ConvertScenario(destStream, srcStream, scnr, scnrTag.Name);
+                scnr = (Scenario)porttag.ConvertData(destStream, srcStream, resourceStreams, scnr, scnr, scnrTag.Name);
+                scnr = porttag.ConvertScenario(destStream, srcStream, resourceStreams, scnr, scnrTag.Name);
                 scnrTag = CreateOrReplaceTag<Scenario>(destCache, scnrTag.Name);
                 scnr.MapId = mapId;
                 scnr.MapType = ScenarioMapType.Multiplayer;
@@ -480,15 +475,24 @@ namespace TagTool.Commands.Porting
                 if (conversionFlags.HasFlag(MultiplayerScenarioConversionFlags.SpawnPoint))
                     AddRespawnPoint(scnr, 0, spawnPoint, new RealEulerAngles3d());
 
+                // add the prematch camera
+                AddPrematchCamera(scnr, spawnPoint + new RealPoint3d(0, 0, 0.62f), new RealEulerAngles3d());
+
                 // add generic player starting profile
                 AddPlayerStartingProfile(scnr);
 
                 // finalize the scenario
                 destCache.Serialize(destStream, scnrTag, scnr);
+
+                porttag.WaitForPendingSoundConversion();
+                porttag.ProcessDeferredActions();
             }
+    
+            foreach (var pair in resourceStreams)
+                pair.Value.Close();
         }
 
-        void GenerateMapFile(Stream cacheStream, GameCacheHaloOnlineBase cache, CachedTag scenarioTag, string mapName, string mapDescription)
+        void GenerateMapFile(Stream cacheStream, GameCache cache, CachedTag scenarioTag, string mapName, string mapDescription)
         {
             var scenarioName = Path.GetFileName(scenarioTag.Name);
             var scnr = cache.Deserialize<Scenario>(cacheStream, scenarioTag);
@@ -497,9 +501,38 @@ namespace TagTool.Commands.Porting
             mapBuilder.MapName = mapName;
             mapBuilder.MapDescription = mapDescription;
             MapFile map = mapBuilder.Build(scenarioTag, scnr);
-            Console.WriteLine($"Generating map file '{map.Header.GetName()}'...");
 
-            cache.MapFiles.Add(map);
+            if (cache is GameCacheModPackage)
+            {
+                var mapStream = new MemoryStream();
+                var writer = new EndianWriter(mapStream, leaveOpen: true);
+                map.Write(writer);
+
+                var modPackCache = cache as GameCacheModPackage;
+                modPackCache.AddMapFile(mapStream, scnr.MapId);
+            }
+            else
+            {
+                var mapFile = new FileInfo(Path.Combine(cache.Directory.FullName, $"{scenarioName}.map"));
+
+                Console.WriteLine($"Generating map file '{mapFile.Name}'...");
+
+                using (var mapFileStream = mapFile.Create())
+                {
+                    map.Write(new EndianWriter(mapFileStream));
+                }
+            }
+        }
+
+        private void AddPrematchCamera(Scenario scnr, RealPoint3d position, RealEulerAngles3d rotation)
+        {
+            scnr.CutsceneCameraPoints.Add(new CutsceneCameraPoint()
+            {
+                Position = position,
+                Orientation = rotation,
+                Flags = CutsceneCameraPointFlags.PrematchCameraHack,
+                Name = "prematch_camera",
+            });
         }
 
         private void AddRespawnPoint(Scenario scnr, int bspIndex, RealPoint3d position, RealEulerAngles3d rotation)
@@ -674,12 +707,7 @@ namespace TagTool.Commands.Porting
                 Scenario.Scripts?.Clear();
                 Scenario.Globals?.Clear();
                 Scenario.CutsceneFlags?.Clear();
-                for(int i = Scenario.CutsceneCameraPoints.Count - 1; i >= 0; i--)
-                {
-                    var cameraPoint = Scenario.CutsceneCameraPoints[i];
-                    if(cameraPoint.Name!= "prematch_camera" && cameraPoint.Name != "podium_camera")
-                    Scenario.CutsceneCameraPoints.RemoveAt(i);
-                }
+                Scenario.CutsceneCameraPoints?.Clear();
                 Scenario.Cinematics?.Clear();
                 Scenario.CinematicLighting?.Clear();
                 Scenario.CutsceneTitles?.Clear();
@@ -860,7 +888,7 @@ namespace TagTool.Commands.Porting
                     // fixup the allowed bsps
                     placement.CanAttachToBspFlags = (ushort)mask;
                     // tell it to always spawn
-                    placement.PlacementFlags.Flags &= ~ObjectPlacementFlags.ObjectLocationPlacementFlags.NotAutomatically;
+                    placement.PlacementFlags &= ~ObjectPlacementFlags.NotAutomatically;
 
                     // add the placement to the new list
                     newPlacements.Add(placement);

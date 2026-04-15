@@ -8,7 +8,6 @@ using TagTool.BlamFile;
 using TagTool.Cache;
 using TagTool.Cache.HaloOnline;
 using TagTool.Commands.Common;
-using TagTool.Common.Logging;
 using TagTool.IO;
 using TagTool.Tags.Definitions;
 
@@ -89,7 +88,7 @@ namespace TagTool.Commands.Modding
                 }
             }
 
-            Cache.MapFiles.Add(mapFile);
+            Cache.AddMapFile(mapStream, header.MapId);
 
             Console.WriteLine($"Map added successfully.");
             return true;
@@ -103,14 +102,13 @@ namespace TagTool.Commands.Modding
             if (!int.TryParse(args[0], out int mapId))
                 return new TagToolError(CommandError.ArgInvalid, "Invalid map id");
 
-            var mapFile = Cache.MapFiles.FindByMapId(mapId);
-            if (mapFile == null)
-            {
-                Log.Warning($"Map file with map id: {mapId} not found");
-                return true;
-            }
+            var mapFileIndex = Cache.BaseModPackage.MapIds.IndexOf(mapId);
+            if (mapFileIndex == -1)
+                return new TagToolError(CommandError.CustomError, $"Map file with map id: {mapId} not found");
 
-            Cache.MapFiles.Delete(mapFile.Header.GetName());
+            Cache.BaseModPackage.MapIds.RemoveAt(mapFileIndex);
+            Cache.BaseModPackage.MapFileStreams.RemoveAt(mapFileIndex);
+            Cache.BaseModPackage.MapToCacheMapping.Remove(mapFileIndex);
             Console.WriteLine($"Map deleted successfully.");
             return true;
         }
@@ -122,10 +120,14 @@ namespace TagTool.Commands.Modding
             Console.WriteLine(columnFormat, "Map Id", "Map Name", "Scenario", "Map Variant");
             Console.WriteLine(new string('-', 100));
 
-            var mapFiles = Cache.MapFiles.GetAll();
-            for (int i = 0; i < mapFiles.Length; i++)
+            for (int i = 0; i < Cache.BaseModPackage.MapFileStreams.Count; i++)
             {
-                var mapFile = mapFiles[i];
+                var mapStream = Cache.BaseModPackage.MapFileStreams[i];
+                mapStream.Position = 0;
+                var mapFile = new MapFile();
+                mapFile.Read(new EndianReader(mapStream));
+                mapStream.Position = 0;
+
                 var header = (CacheFileHeaderGenHaloOnline)mapFile.Header;
                 var mapVariant = mapFile.MapFileBlf?.MapVariant?.MapVariant;
 

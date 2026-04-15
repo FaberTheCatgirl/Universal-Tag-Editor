@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using static TagTool.Tags.TagFieldFlags;
-using static TagTool.Tags.Definitions.Gen2.Effect.EffectEventBlock.ParticleSystemDefinitionBlockNew.ParticleSystemEmitterDefinitionBlock;
 
 namespace TagTool.Tags.Definitions.Gen2
 {
@@ -24,21 +23,21 @@ namespace TagTool.Tags.Definitions.Gen2
         /// controls how the color of the particle changes as
         /// a function of its input
         /// </summary>
-        public EditablePropertyBlockGen2 Color;
+        public ParticlePropertyColorStructNewBlock Color;
         /// <summary>
         /// seperate from color, controls how the particle fades
         /// as a function of its input
         /// </summary>
-        public EditablePropertyBlockGen2 Alpha;
+        public ParticlePropertyScalarStructNewBlock Alpha;
         /// <summary>
         /// controls how the size of a particle changes as
         /// a function of its input
         /// </summary>
-        public EditablePropertyBlockGen2 Scale;
+        public ParticlePropertyScalarStructNewBlock1 Scale;
         /// <summary>
         /// controls how the particle rotates. 0= 0 degrees, .5= 180 degrees, 1.0= 360 degrees
         /// </summary>
-        public EditablePropertyBlockGen2 Rotation;
+        public ParticlePropertyScalarStructNewBlock2 Rotation;
         /// <summary>
         /// provides finer grain control over how the animation
         /// happens.  a output of 0.25 means that when that input
@@ -46,7 +45,7 @@ namespace TagTool.Tags.Definitions.Gen2
         /// particle will be 25% of the way through
         /// its animation.
         /// </summary>
-        public EditablePropertyBlockGen2 FrameIndex;
+        public ParticlePropertyScalarStructNewBlock3 FrameIndex;
         /// <summary>
         /// collision occurs when particle physics has collision, death spawned when particle dies
         /// </summary>

@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections;
 using System.IO;
 using System.Linq;
 using TagTool.Cache;
 using TagTool.Cache.MCC;
 using TagTool.Commands.Common;
 using TagTool.Common;
-using TagTool.Common.Logging;
 using TagTool.IO;
 using TagTool.Serialization;
 using TagTool.Tags;
@@ -31,11 +29,6 @@ namespace TagTool.BlamFile
 
         public MapFile()
         {
-        }
-
-        public MapFile(EndianReader reader)
-        {
-            Read(reader);
         }
 
         public void Write(EndianWriter writer)
@@ -65,7 +58,7 @@ namespace TagTool.BlamFile
 
             if (!Header.IsValid())
             {
-                Log.Warning($"Invalid map file header or footer detected. Verify definition");
+                new TagToolWarning($"Invalid map file header or footer detected. Verify definition");
             }
 
             // temporary code until map file format cleanup
@@ -121,6 +114,18 @@ namespace TagTool.BlamFile
                 return false;
         }
 
+        private static bool IsGen4MCCFormat(EndianReader reader)
+        {
+            reader.SeekTo(0x120);
+            CacheVersion version = CacheVersion.Unknown;
+            CachePlatform platform = CachePlatform.All;
+            CacheVersionDetection.GetFromBuildName(reader.ReadString(0x20), ref version, ref platform);
+            if (platform == CachePlatform.MCC)
+                return true;
+            else
+                return false;
+        }
+
         private static bool IsModifiedReachFormat(EndianReader reader)
         {
             reader.SeekTo(0x120);
@@ -133,10 +138,10 @@ namespace TagTool.BlamFile
                 return true;
         }
 
-        private static string GetBuildDate(EndianReader reader, CacheFileVersion cacheFileVersion, CacheVersion version = CacheVersion.Unknown)
+        private static string GetBuildDate(EndianReader reader, CacheFileVersion version)
         {
             var buildDataLength = 0x20;
-            switch (cacheFileVersion)
+            switch (version)
             {
                 case CacheFileVersion.HaloPC:
                 case CacheFileVersion.HaloCustomEdition:
@@ -153,15 +158,13 @@ namespace TagTool.BlamFile
                 case CacheFileVersion.Halo3Beta:
                 case CacheFileVersion.Halo3:
                 case CacheFileVersion.HaloOnline:
+                    if (IsGen3MCCFormat(reader))
+                        reader.SeekTo(0x120);
+                    else
                         reader.SeekTo(0x11C);
                     break;
                 case CacheFileVersion.HaloMCCUniversal:
-                    {
-                        if(version <= CacheVersion.HaloReach)
-                            reader.SeekTo(0xA0);
-                        else
-                            reader.SeekTo(0x98);
-                    }
+                    reader.SeekTo(0xA0);
                     break;
 
                 case CacheFileVersion.HaloReach:
@@ -186,6 +189,7 @@ namespace TagTool.BlamFile
         private static void DetectCacheVersionAndPlatform(EndianReader reader, CacheFileVersion mapVersion, ref CacheVersion cacheVersion, ref CachePlatform cachePlatform)
         {
             var version = GetMapFileVersion(reader);
+            var buildDate = GetBuildDate(reader, version);
 
             if (mapVersion == CacheFileVersion.HaloMCCUniversal)
             {
@@ -218,7 +222,6 @@ namespace TagTool.BlamFile
             }
             else
             {
-                var buildDate = GetBuildDate(reader, version);
                 CacheVersionDetection.GetFromBuildName(buildDate, ref cacheVersion, ref cachePlatform);
             }
         }

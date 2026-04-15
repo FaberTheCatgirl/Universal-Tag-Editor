@@ -20,7 +20,7 @@ namespace TagTool.Serialization
         {
             Tag = tag;
 
-            if (tag.IsShared && gameCache.Version == CacheVersion.Halo2PC)
+            if (tag.IsShared && gameCache.Version == CacheVersion.Halo2Vista)
             {
                 GameCache = gameCache.VistaSharedTagCache;
                 Stream = ((GameCacheGen2.Gen2CacheStream)stream).SharedStream;
@@ -40,7 +40,7 @@ namespace TagTool.Serialization
             uint tagDataSectionOffset = GameCache.BaseMapFile.Header.GetTagMemoryHeader().MemoryBufferOffset + (uint)GameCache.BaseMapFile.Header.GetTagTableHeaderOffset();
 
             uint tagDataOffset;
-            if (GameCache.Version == CacheVersion.Halo2PC)
+            if (GameCache.Version == CacheVersion.Halo2Vista)
                 tagDataOffset = (address - GameCache.TagCacheGen2.VirtualAddress) - GameCache.BaseMapFile.Header.GetTagMemoryHeader().MemoryBufferOffset;
             else
                 tagDataOffset = (address - GameCache.TagCacheGen2.VirtualAddress);

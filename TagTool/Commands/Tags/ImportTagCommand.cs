@@ -2,10 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using TagTool.Cache;
-using TagTool.Cache.HaloOnline;
-using TagTool.Common;
-using TagTool.Common.Logging;
 using TagTool.Commands.Common;
+using TagTool.Cache.HaloOnline;
 
 namespace TagTool.Commands.Tags
 {
@@ -42,12 +40,8 @@ namespace TagTool.Commands.Tags
             using (var inStream = File.OpenRead(path))
             {
                 data = new byte[inStream.Length];
-                inStream.ReadExactly(data);
+                inStream.Read(data, 0, data.Length);
             }
-
-            if (!FormatRecognized(in data, in instance))
-                return new TagToolError(CommandError.FileType, "Incompatible tag format."
-                    + "\nIf this tag is from an editing kit, try ImportLooseTag");
 
             using (var stream = Cache.OpenCacheReadWrite())
             {
@@ -59,30 +53,6 @@ namespace TagTool.Commands.Tags
             }
 
             Console.WriteLine($"Imported 0x{data.Length:X} bytes.");
-
-            return true;
-        }
-
-        private bool FormatRecognized(in byte[] data, in CachedTag instance)
-        {
-            if (data is null || data.Length < 0x30)
-                return false;
-
-            int size = BitConverter.ToInt32(data, 0x4);
-            if (size != data.Length)
-                return false;
-
-            Tag tag = new(BitConverter.ToInt32(data, 0x14));
-            if (!Cache.TagCache.TagDefinitions.TagDefinitionExists(tag))
-                return false;
-            if (instance.Group.Tag != tag)
-                Log.Warning($"Importing \'{tag}\' tag over instance of group \'{instance.Group.Tag}\'");
-
-            if (data.Length == 0x30)
-            {
-                Log.Warning($"Tag is empty (size = 0x30)");
-                return false;
-            }
 
             return true;
         }

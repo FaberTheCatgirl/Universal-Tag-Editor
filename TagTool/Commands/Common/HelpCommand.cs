@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.Common
 {
@@ -72,7 +71,7 @@ namespace TagTool.Commands.Common
             {
                 bufferWidth = Console.BufferWidth;
             }
-            catch (Exception) { }
+            catch (Exception ex) { }
 
             Console.WriteLine("Available commands for {0}:", context.Name);
             Console.WriteLine();
@@ -92,7 +91,7 @@ namespace TagTool.Commands.Common
             var command = ContextStack.Context.GetCommand(commandName);
             if (command == null)
             {
-                Log.Error($"Unable to find command \"{commandName}\"");
+                new TagToolError(CommandError.CustomError,$"Unable to find command \"{commandName}\"");
                 return;
             }
 			

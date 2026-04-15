@@ -12,7 +12,6 @@ using TagTool.Animations;
 using TagTool.Tags.Resources;
 using System.Text;
 using System.Threading.Tasks;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.ModelAnimationGraphs
 {
@@ -108,12 +107,14 @@ namespace TagTool.Commands.ModelAnimationGraphs
                         break;
                     case ".JMT":
                         FrameInfoType = ModelAnimationTagResource.GroupMemberMovementDataType.dx_dy_dyaw;
+                        new TagToolWarning("Advanced Movement data not currently supported, animation may not display properly!");
                         break;
                     case ".JMZ":
                         FrameInfoType = ModelAnimationTagResource.GroupMemberMovementDataType.dx_dy_dz_dyaw;
+                        new TagToolWarning("Advanced Movement data not currently supported, animation may not display properly!");
                         break;
                     default:
-                        Log.Error($"Filetype {file_extension.ToUpper()} not recognized!");
+                        new TagToolError(CommandError.CustomError, $"Filetype {file_extension.ToUpper()} not recognized!");
                         return false;
                 }
 
@@ -159,7 +160,7 @@ namespace TagTool.Commands.ModelAnimationGraphs
                 }
 
                 //process node data in advance of serialization
-                importer.ProcessNodeFrames((GameCacheHaloOnlineBase)CacheContext, Animation, AnimationType, FrameInfoType);
+                importer.ProcessNodeFrames((GameCacheHaloOnlineBase)CacheContext, AnimationType, FrameInfoType);
 
                 //Check the nodes to verify that this animation can be imported to this jmad
                 //if (!importer.CompareNodes(Animation.SkeletonNodes, (GameCacheHaloOnlineBase)CacheContext))

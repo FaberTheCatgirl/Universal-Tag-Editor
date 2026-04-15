@@ -36,6 +36,7 @@ namespace TagTool.Geometry
 
 		static MeshOptimizer()
 		{
+			LoadLibrary(Path.Combine(Program.TagToolDirectory, "Tools", "meshoptimizer.dll"));
 			meshopt_encodeIndexVersion((UIntPtr)1);
 		}
 	}

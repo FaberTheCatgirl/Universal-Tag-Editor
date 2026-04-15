@@ -7,7 +7,6 @@ using System.Linq;
 using TagTool.Cache;
 using TagTool.Commands.Common;
 using TagTool.Common;
-using TagTool.Common.Logging;
 using TagTool.Tags;
 using TagTool.Tags.Definitions;
 using TagTool.Tags.Definitions.Common;
@@ -91,7 +90,7 @@ namespace TagTool.BlamFile.Reach
             {
                 if (result.VariantObjectCount >= 640)
                 {
-                    Log.Warning($"Map variant object limit reached!");
+                    new TagToolWarning($"Map variant object limit reached!");
                     break;
                 }
 
@@ -100,7 +99,7 @@ namespace TagTool.BlamFile.Reach
                     continue;
 
                 if (reachVariantObject.SpawnRelativeToIndex != -1)
-                    Log.Warning("Relative placement found. Not currently supported!");
+                    new TagToolWarning("Relative placement found. Not currently supported!");
 
                 var reachQuota = sourceMapVariant.Quotas[reachVariantObject.QuotaIndex];
 

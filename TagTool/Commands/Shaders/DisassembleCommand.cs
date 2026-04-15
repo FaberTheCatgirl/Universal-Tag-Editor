@@ -96,28 +96,16 @@ namespace TagTool.Commands.Shaders
                     
             }
 
-            string filename = args.Count == 2 ? args[1] : "";
-
-            StreamWriter GetWriter(int index)
-            {
-                if (filename.Length == 0)
-                {
-                    return new(Console.OpenStandardOutput());
-                }
-                return File.CreateText(Path.Combine(filename, $"{Tag.Name.Split('\\').Last()}_{indices[index]}.{Tag.Group}.txt"));
-            }
+            string filename = args.Count == 2 ? args[1] : "Shaders";
 
             for (var i = 0; i < disassemblies.Count; i++)
-            {
-                using (var writer = GetWriter(i))
+                using (var writer = File.CreateText(Path.Combine(filename, $"{Tag.Name.Split('\\').Last()}_{indices[i]}.{Tag.Group}.txt")))
                 {
                     if (Cache.GetType() == typeof(GameCacheGen3))
-                    {
                         GenerateGen3ShaderHeader(indices[i], writer, gpix);
-                    }
                     writer.WriteLine(disassemblies[i]);
                 }
-            }
+                    
 
             return true;
         }

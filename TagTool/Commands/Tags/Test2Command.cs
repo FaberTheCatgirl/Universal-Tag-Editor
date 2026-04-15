@@ -7,8 +7,6 @@ using TagTool.Cache;
 using TagTool.Cache.HaloOnline;
 using TagTool.Commands.Porting;
 using TagTool.Common;
-using TagTool.Porting;
-using TagTool.Porting.Gen3;
 using TagTool.Tags;
 
 namespace TagTool.Commands.Tags
@@ -258,13 +256,11 @@ namespace TagTool.Commands.Tags
                 if (srcCache.TagCache == null || srcCache.TagCache.Count == 0)
                     continue;
 
+                var resourceStreams = new Dictionary<ResourceLocation, Stream>();
                 using (var srcStream = srcCache.OpenCacheRead())
                 using (var dstStream = Cache.OpenCacheReadWrite())
                 {
                     long totalResourcesSize = 0;
-
-                    using var portContext = PortingContext.Create(Cache, srcCache);
-
                     foreach (var tag in srcCache.TagCache.NonNull().Where(x => x.IsInGroup("bitm")))
                     {
                         CachedTag existingTag;
@@ -276,8 +272,11 @@ namespace TagTool.Commands.Tags
 
                         Console.WriteLine($"Converting {tag}...");
 
-                      
-                        var convertedTag = portContext.ConvertTag(dstStream, srcStream, tag);
+                        var portTag = new PortTagCommand(Cache, srcCache);
+                        portTag.SetFlags(PortTagCommand.PortingFlags.Default);
+
+                        var convertedTag = portTag.ConvertTag(dstStream, srcStream, resourceStreams, tag);
+
                         if (convertedTag == null)
                         {
                             Console.WriteLine($"[ERROR]: Failed to convert tag '{tag}'");
@@ -289,6 +288,11 @@ namespace TagTool.Commands.Tags
 
                         converted.Add((convertedTag, resourcesSize));
                     }
+
+                    foreach (var stream in resourceStreams)
+                        stream.Value.Close();
+                    Cache.SaveStrings();
+                    Cache.SaveTagNames();
                 }
 
                 using (var convertedDump = File.CreateText("converted.txt"))

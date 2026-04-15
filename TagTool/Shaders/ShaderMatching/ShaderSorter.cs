@@ -13,7 +13,19 @@ namespace TagTool.Shaders.ShaderMatching
 
     public static class Sorter
     {
-        public static long GetValue(SortingInterface shaderInterface, ReadOnlySpan<byte> options)
+        public static List<int> GetTemplateOptions(string name)
+        {
+            List<int> options = new List<int>();
+            var optionStrings = name.Split('\\').ToList().Last().Split('_').ToList();
+            optionStrings.RemoveAt(0);
+            foreach (var optStr in optionStrings)
+            {
+                options.Add(int.Parse(optStr));
+            }
+            return options;
+        }
+        
+        public static long GetValue(SortingInterface shaderInterface, List<int> current)
         {
             // assumes target and shaderInterface are from the same shader type
             int baseStepSize = 17; // max number of option + 1
@@ -22,7 +34,7 @@ namespace TagTool.Shaders.ShaderMatching
             for(int i = 0; i < shaderInterface.GetTypeCount(); i++)
             {
                 long typeScale = (long)Math.Pow(baseStepSize, shaderInterface.GetTypeIndex(i));
-                value += typeScale * (shaderInterface.GetOptionIndex(i, options[i]) + 1);
+                value += typeScale * (shaderInterface.GetOptionIndex(i, current[i]) + 1);
             }
             return value;
         }
@@ -40,8 +52,6 @@ namespace TagTool.Shaders.ShaderMatching
 
     public class ShaderSorter : SortingInterface
     {
-        public static readonly ShaderSorter Instance = new();
-
         //
         // TODO: order the list for best matches, the higher the index the higher the importance. (low -> high) (0 -> n). Options that can be easily adapted should have less importance
         // than options that cannot be replaced, same for types (for example, material model is critial, therefore it should have a higher sorted position than other types because when

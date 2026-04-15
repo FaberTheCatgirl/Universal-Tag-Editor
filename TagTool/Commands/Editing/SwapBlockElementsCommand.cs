@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using TagTool.Cache;
 using TagTool.Commands.Common;
-using TagTool.Common.Logging;
 using TagTool.Tags;
 
 namespace TagTool.Commands.Editing
@@ -97,7 +96,7 @@ namespace TagTool.Commands.Editing
 
             if (blockValue.Count - 1 < 0)
             {
-                Log.Error("TagBlock is null!");
+                new TagToolError(CommandError.OperationFailed, "TagBlock is null!");
                 ContextReturn(previousContext, previousOwner, previousStructure);
                 return true;
             }

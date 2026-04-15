@@ -5,9 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TagTool.BlamFile;
-using TagTool.Commands.Common;
 using TagTool.Common;
-using TagTool.Common.Logging;
 using TagTool.IO;
 using TagTool.Serialization;
 using TagTool.Tags;
@@ -111,7 +109,7 @@ namespace TagTool.Cache.Gen2
                 {
                     var group = new TagGroupGen2(new Tag(reader.ReadInt32()), new Tag(reader.ReadInt32()), new Tag(reader.ReadInt32()));
                     if (!TagDefinitions.TagDefinitionExists(group))
-                        Log.Warning($"Warning: tag definition for {group} does not exist!");
+                        Debug.WriteLine($"Warning: tag definition for {group} does not exists!");
                 }
             }
 
@@ -133,7 +131,7 @@ namespace TagTool.Cache.Gen2
 
 
                     var streamPosition = reader.BaseStream.Position;
-                    reader.SeekTo(tagDataSectionOffset + entry.TagNameAddress - tagCacheVirtualAddress);
+                    reader.SeekTo(tagDataSectionOffset +  entry.TagNameAddress - tagCacheVirtualAddress);
                     name = reader.ReadNullTerminatedString();
                     reader.SeekTo(streamPosition);
                 }
@@ -192,7 +190,7 @@ namespace TagTool.Cache.Gen2
 
             if (Version <= CacheVersion.Halo2Xbox)
                 VirtualAddress = Tags[0].Offset;
-            else if (Version == CacheVersion.Halo2PC)
+            else if (Version == CacheVersion.Halo2Vista)
                 VirtualAddress = mapFile.Header.GetTagMemoryHeader().VirtualAddress;
 
         }

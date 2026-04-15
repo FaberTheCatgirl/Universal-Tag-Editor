@@ -13,7 +13,6 @@ using TagTool.Shaders;
 using TagTool.Tags.Definitions;
 using static TagTool.Tags.Definitions.RenderMethodDefinition;
 using TagTool.Commands.Common;
-using TagTool.Common.Logging;
 
 namespace TagTool.Shaders.ShaderGenerator
 {
@@ -50,7 +49,7 @@ namespace TagTool.Shaders.ShaderGenerator
             
             if (!cache.TagCache.TryGetTag<RenderMethodDefinition>(rmdfName, out CachedTag rmdfTag)) // generate
             {
-                Log.Error($"No rmdf tag present for {shaderType}");
+                new TagToolError(CommandError.CustomMessage, $"No rmdf tag present for {shaderType}");
                 return false;
                 //rmdfTag = cache.TagCache.AllocateTag<RenderMethodDefinition>(rmdfName);
                 //var rmdf = GenerateRenderMethodDefinition(cache, stream, generator, shaderType, out _, out _);
@@ -131,7 +130,8 @@ namespace TagTool.Shaders.ShaderGenerator
             CategoryBlock.ShaderOption result = new CategoryBlock.ShaderOption();
 
             string optionName = FixupMethodOptionName(generator.GetMethodOptionNames((int)categoryIndex).GetValue(optionIndex).ToString().ToLower());
-            result.Name = cache.StringTable.GetOrAddString(optionName);
+            StringId nameId = cache.StringTable.GetStringId(optionName);
+            result.Name = nameId != StringId.Invalid ? nameId : cache.StringTable.AddString(optionName);
 
             var parameters = generator.GetParametersInOption(categoryName, optionIndex, out string rmopName, out _);
 
@@ -150,8 +150,8 @@ namespace TagTool.Shaders.ShaderGenerator
 
             if (autoMacro)
             {
-                result.PixelFunction = StringId.Empty;
-                result.VertexFunction = StringId.Empty;
+                result.PixelFunction = StringId.Invalid;
+                result.VertexFunction = StringId.Invalid;
             }
             else
             { } // TODO
@@ -164,7 +164,8 @@ namespace TagTool.Shaders.ShaderGenerator
             CategoryBlock result = new CategoryBlock();
 
             string categoryName = FixupMethodOptionName(generator.GetMethodNames().GetValue(categoryIndex).ToString().ToLower());
-            result.Name = cache.StringTable.GetOrAddString(categoryName);
+            StringId nameId = cache.StringTable.GetStringId(categoryName);
+            result.Name = nameId != StringId.Invalid ? nameId : cache.StringTable.AddString(categoryName);
 
             result.ShaderOptions = new List<CategoryBlock.ShaderOption>();
 
@@ -179,8 +180,8 @@ namespace TagTool.Shaders.ShaderGenerator
 
             if (autoMacro)
             {
-                result.PixelFunction = StringId.Empty;
-                result.VertexFunction = StringId.Empty;
+                result.PixelFunction = StringId.Invalid;
+                result.VertexFunction = StringId.Invalid;
             }
             else
             { } // TODO
@@ -270,7 +271,8 @@ namespace TagTool.Shaders.ShaderGenerator
 
                 RenderMethodOption.ParameterBlock parameterBlock = new RenderMethodOption.ParameterBlock();
 
-                parameterBlock.Name = cache.StringTable.GetOrAddString(parameter.ParameterName);
+                StringId nameId = cache.StringTable.GetStringId(parameter.ParameterName);
+                parameterBlock.Name = nameId != StringId.Invalid ? nameId : cache.StringTable.AddString(parameter.ParameterName);
 
                 parameterBlock.RenderMethodExtern = (RenderMethodExtern)parameter.RenderMethodExtern;
 

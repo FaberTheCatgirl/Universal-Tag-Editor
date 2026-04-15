@@ -5,8 +5,6 @@ namespace TagTool.Shaders.ShaderMatching
 {
     public class BeamSorter : SortingInterface
     {
-        public static readonly BeamSorter Instance = new();
-
         private static List<BeamOptionTypes> TypeOrder = new List<BeamOptionTypes> {
            BeamOptionTypes.black_point,
            BeamOptionTypes.fog,

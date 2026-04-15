@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Frozen;
 using System.Collections.Generic;
 using TagTool.Common;
 using TagTool.Tags;
@@ -9,8 +8,7 @@ namespace TagTool.Cache.Gen1
 {
     public class TagDefinitionsGen1 : TagDefinitions
     {
-        public FrozenDictionary<TagGroup, Type> Gen1Types => Gen1Definitions.TagGroupToTypeLookup;
-        private static readonly CachedDefinitions Gen1Definitions = GetCachedDefinitions(new Dictionary<TagGroup, Type>
+        public Dictionary<TagGroup, Type> Gen1Types = new Dictionary<TagGroup, Type>
         {
             { new TagGroupGen1("mode"), typeof(Model) },
             { new TagGroupGen1("mod2"), typeof(Gbxmodel) },
@@ -90,7 +88,8 @@ namespace TagTool.Cache.Gen1
             { new TagGroupGen1("garb","item","obje"), typeof(Garbage) },
             { new TagGroupGen1("tagc"), typeof(TagCollection) },
             { new TagGroupGen1("devc"), typeof(InputDeviceDefaults) },
-        });
-        public TagDefinitionsGen1() : base(Gen1Definitions) { }
+        };
+
+        public override Dictionary<TagGroup, Type> Types { get => Gen1Types; }
     }
 }

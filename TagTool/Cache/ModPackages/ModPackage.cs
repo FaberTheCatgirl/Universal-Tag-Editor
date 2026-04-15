@@ -13,14 +13,11 @@ using TagTool.Commands.Common;
 using System.Text.RegularExpressions;
 using TagTool.Commands;
 using System.Linq;
-using TagTool.Common.Logging;
 
 namespace TagTool.Cache
 {
     public class ModPackage
     {
-        public record struct MapFileEntry(MapFile MapFile, int CacheIndex);
-
         public ModPackageHeader Header { get; set; } = new ModPackageHeader();
 
         public ModPackageMetadata Metadata { get; set; } = new ModPackageMetadata();
@@ -33,10 +30,13 @@ namespace TagTool.Cache
 
         public bool IsLarge { get; }
 
-        public List<MapFileEntry> MapFiles { get; set; } = new List<MapFileEntry>();
+        public List<Stream> MapFileStreams { get; set; } = new List<Stream>();
 
         public Stream CampaignFileStream { get; set; } = new MemoryStream();
 
+        public Dictionary<int, int> MapToCacheMapping { get; set; } = new Dictionary<int, int>();
+
+        public List<int> MapIds = new List<int>();
 
         public List<string> CacheNames { get; set; } = new List<string>();
 
@@ -64,9 +64,9 @@ namespace TagTool.Cache
             ResourcesStream.Dispose();
         }
 
-        public ModPackage(FileInfo file = null)
+        public ModPackage(FileInfo file = null, bool unmanagedResourceStream=false)
         {
-            IsLarge = true;
+            IsLarge = unmanagedResourceStream;
 
             if (file != null)
                 Load(file);
@@ -84,28 +84,37 @@ namespace TagTool.Cache
                 Files = new Dictionary<string, Stream>();
                 StringTable = new StringTableHaloOnline(CacheVersion.HaloOnlineED, null);
                 Header.SectionTable = new ModPackageSectionTable();
-                unsafe
+                if (!unmanagedResourceStream)
                 {
-                    long bufferSize = 4L * 1024 * 1024 * 1024; // 4 GB max
-                    IntPtr data = Marshal.AllocHGlobal((IntPtr)bufferSize);
-                    ResourcesStream = new ExtantStream(new UnmanagedMemoryStream((byte*)data.ToPointer(), 0, bufferSize, FileAccess.ReadWrite));
+                    ResourcesStream = new ExtantStream(new MemoryStream());
                 }
+                else
+                {
+                    unsafe
+                    {
+                        long bufferSize = 4L * 1024 * 1024 * 1024; // 4 GB max
+                        IntPtr data = Marshal.AllocHGlobal((IntPtr)bufferSize);
+                        ResourcesStream = new ExtantStream(new UnmanagedMemoryStream((byte*)data.ToPointer(), 0, bufferSize, FileAccess.ReadWrite));
+                    }
+                }
+                
             }
         }
 
-
-        public bool IsValidTagCacheIndex(int index)
+        public void AddMap(Stream mapStream, int mapId, int cacheIndex)
         {
-            return index >= 0 && index < CacheNames.Count;
-        }
-
-        public int AddTagCache(string name, Dictionary<int, string> tagNames, Stream stream)
-        {
-            TagCachesStreams.Add(new ExtantStream(stream));
-            CacheNames.Add(name);
-            TagCacheNames.Add(tagNames);
-
-            return CacheNames.Count - 1;
+            mapStream.Position = 0;
+            var mapFileIndex = MapIds.IndexOf(mapId);
+            if (mapFileIndex != -1)
+            {
+                MapFileStreams[mapFileIndex] = mapStream;
+            }
+            else
+            {
+                MapFileStreams.Add(mapStream);
+                MapToCacheMapping.Add(MapFileStreams.Count - 1, cacheIndex);
+                MapIds.Add(mapId);
+            }
         }
 
         public void Load(FileInfo file)
@@ -209,7 +218,7 @@ namespace TagTool.Cache
                 // Write map file section
                 //
 
-                if(MapFiles.Count > 0)
+                if(MapFileStreams.Count > 0)
                 {
                     offset = (uint)writer.BaseStream.Position;
                     WriteMapsSection(writer);
@@ -270,7 +279,7 @@ namespace TagTool.Cache
                 //
 
                 packageStream.Position = typeof(ModPackageHeader).GetSize();
-                Header.SHA1 = SHA1.Create().ComputeHash(packageStream);
+                Header.SHA1 = new SHA1Managed().ComputeHash(packageStream);
 
                 //
                 // Sign the package using the ED profile keys
@@ -293,7 +302,7 @@ namespace TagTool.Cache
                 serializer.Serialize(dataContext, Header);
 
                 if (packageStream.Length > uint.MaxValue)
-                    Log.Warning($"Mod package size exceeded 0x{uint.MaxValue.ToString("X8")} bytes, it will fail to load.");
+                    new TagToolWarning($"Mod package size exceeded 0x{uint.MaxValue.ToString("X8")} bytes, it will fail to load.");
 
             }
         }
@@ -345,30 +354,29 @@ namespace TagTool.Cache
 
         private void WriteMapsSection(EndianWriter writer)
         {
-            long sectionOffset = writer.BaseStream.Position;
+            uint sectionOffset = (uint)writer.BaseStream.Position;
             uint sectionEntrySize = TagStructure.GetStructureSize(typeof(GenericSectionEntry), PackageVersion, PackagePlatform);
             int cacheMapEntrySize = (int)TagStructure.GetStructureSize(typeof(CacheMapTableEntry), PackageVersion, PackagePlatform);
-            GenericSectionEntry mapEntry = new GenericSectionEntry(MapFiles.Count, sectionEntrySize);
+            GenericSectionEntry mapEntry = new GenericSectionEntry(MapFileStreams.Count, sectionEntrySize);
             mapEntry.Write(writer);
             // make room for table
 
             writer.Write(new byte[cacheMapEntrySize * mapEntry.Count]);
 
-            for(int i = 0; i < MapFiles.Count; i++)
+            for(int i = 0; i < MapFileStreams.Count; i++)
             {
-                MapFileEntry entry = MapFiles[i];
-                int mapId = ((CacheFileHeaderGenHaloOnline)entry.MapFile.Header).MapId;
+                var mapFileStream = MapFileStreams[i];
+                uint offset = (uint)writer.BaseStream.Position;
+                int size = (int)mapFileStream.Length;
 
-                long offset = (uint)writer.BaseStream.Position;              
-                entry.MapFile.Write(writer);
-                int size = (int)(writer.BaseStream.Position - offset);
-
+                mapFileStream.Position = 0;
+                StreamUtil.Copy(mapFileStream, writer.BaseStream, (int)mapFileStream.Length);
                 StreamUtil.Align(writer.BaseStream, 4);
 
                 // seek to the table and update size and offset
                 long originalPos = writer.BaseStream.Position;
                 writer.BaseStream.Seek(mapEntry.TableOffset + cacheMapEntrySize * i + sectionOffset, SeekOrigin.Begin);
-                var tableEntry = new CacheMapTableEntry(size, (uint)(offset - sectionOffset), entry.CacheIndex, mapId);
+                var tableEntry = new CacheMapTableEntry(size, offset - sectionOffset, MapToCacheMapping[i], MapIds[i]);
                 tableEntry.Write(writer);
                 writer.BaseStream.Seek(originalPos, SeekOrigin.Begin);
             }
@@ -634,7 +642,9 @@ namespace TagTool.Cache
             var entry = new GenericSectionEntry(reader);
             var mapCount = entry.Count;
 
-
+            MapFileStreams = new List<Stream>();
+            MapToCacheMapping = new Dictionary<int, int>();
+            MapIds = new List<int>();
             // TODO: add map ids on load
             for(int i = 0; i < mapCount; i++)
             {
@@ -657,11 +667,13 @@ namespace TagTool.Cache
                     mapFile.Read(mapReader);
 
                     stream.Position = 0;
-                    MapFiles.Add(new MapFileEntry(mapFile, tableEntry.CacheIndex));
+                    MapFileStreams.Add(stream);
+                    MapIds.Add(((CacheFileHeaderGenHaloOnline)mapFile.Header).MapId);
+                    MapToCacheMapping.Add(i, tableEntry.CacheIndex);
                 }
                 catch
                 {
-                    Log.Error($"Failed to read map file for map id {tableEntry.MapId}");
+                    new TagToolError(CommandError.CustomError, $"Failed to read map file for map id {tableEntry.MapId}");
                 }
             }
         }
@@ -745,9 +757,13 @@ namespace TagTool.Cache
 
         public void DetermineMapFlags()
         {
-            foreach (var map in MapFiles)
+            foreach (var mapFile in MapFileStreams)
             {
-                var type = ((CacheFileHeaderGenHaloOnline)map.MapFile.Header).CacheType;
+                var reader = new EndianReader(mapFile);
+                MapFile map = new MapFile();
+                map.Read(reader);
+
+                var type = ((CacheFileHeaderGenHaloOnline)map.Header).CacheType;
 
                 if (type == CacheFileType.Solo)
                     Header.MapFlags |= MapFlags.CampaignMaps;
@@ -760,6 +776,88 @@ namespace TagTool.Cache
 
         // IO stuff
 
-        
+        public void CreateDescription(bool ignoreArgumentVariables, bool useDialog)
+        {
+            if (useDialog)
+            {
+                Metadata = new ModPackageMetadata();
+
+                Console.WriteLine("Enter the display name of the mod package (32 chars max):");
+                Metadata.Name = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), ignoreArgumentVariables);
+
+                Console.WriteLine();
+                Console.WriteLine("Enter the description of the mod package (512 chars max):");
+                Metadata.Description = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), ignoreArgumentVariables);
+
+                Console.WriteLine();
+                Console.WriteLine("Enter the author of the mod package (32 chars max):");
+                Metadata.Author = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), ignoreArgumentVariables);
+
+                Console.WriteLine();
+                Console.WriteLine("Enter the version of the mod package: (major.minor)");
+
+                try
+                {
+                    var version = Version.Parse(CommandRunner.ApplyUserVars(Console.ReadLine(), ignoreArgumentVariables));
+                    Metadata.VersionMajor = (short)version.Major;
+                    Metadata.VersionMinor = (short)version.Minor;
+                    if (version.Major == 0 && version.Minor == 0)
+                        throw new ArgumentException(nameof(version));
+                }
+                catch (ArgumentException e)
+                {
+                    Console.WriteLine(e.Message);
+                    new TagToolError(CommandError.CustomError, "Failed to parse version number, using default (1.0)");
+                    Metadata.VersionMajor = 1;
+                    Metadata.VersionMinor = 0;
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("Please enter the types of the mod package. Separated by a space [MainMenu Multiplayer Campaign Firefight Character]");
+                string response = CommandRunner.ApplyUserVars(Console.ReadLine().Trim(), ignoreArgumentVariables);
+
+                Header.ModifierFlags = Header.ModifierFlags & ModifierFlags.SignedBit;
+
+                var args = response.Split(' ');
+                for (int x = 0; x < args.Length; x++)
+                {
+                    if (Enum.TryParse<ModifierFlags>(args[x].ToLower().Trim(), out var value) && args[x] != "SignedBit")
+                    {
+                        Header.ModifierFlags |= value;
+                    }
+                    else if (string.IsNullOrWhiteSpace(args[x]))
+                    {
+                        if (args.Count() == 1)
+                        {
+                            Header.ModifierFlags |= ModifierFlags.multiplayer;
+                            Console.WriteLine($"Flags not provided. Multiplayer assumed.");
+                        }
+                    }
+                    else
+                        new TagToolWarning($"Could not parse flag \"{args[x]}\"");
+                }
+            }
+            else
+            {
+                Metadata = new ModPackageMetadata
+                {
+                    Description = "test",
+                    Author = "test",
+                    VersionMajor = 0,
+                    VersionMinor = 1
+                };
+
+                Header.ModifierFlags |= ModifierFlags.mainmenu;
+                Header.ModifierFlags |= ModifierFlags.campaign;
+                Header.ModifierFlags |= ModifierFlags.multiplayer;
+                Header.ModifierFlags |= ModifierFlags.firefight;
+                Header.ModifierFlags |= ModifierFlags.character;
+            }
+
+            Console.WriteLine();
+
+            Metadata.BuildDateLow = (int)DateTime.Now.ToFileTime() & 0x7FFFFFFF;
+            Metadata.BuildDateHigh = (int)((DateTime.Now.ToFileTime() & 0x7FFFFFFF00000000) >> 32);
+        }
     }
 }

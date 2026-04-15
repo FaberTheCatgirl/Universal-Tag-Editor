@@ -28,25 +28,4 @@ namespace TagTool.Ai
         Scarab,
         Guardian
     }
-
-    public enum ActorTypeEnumReach : short
-    {
-        None,
-        Player,
-        Marine,
-        Crew,
-        Spartan,
-        Elite,
-        Jackal,
-        Grunt,
-        Brute,
-        Hunter,
-        Prophet,
-        Bugger,
-        Scarab,
-        Engineer,
-        Skirmisher,
-        Mule,
-        MountedWeapon
-    }
 }

@@ -10,7 +10,6 @@ using TagTool.Audio;
 using System.Linq;
 using TagTool.Audio.Converter;
 using TagTool.IO;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.Sounds
 {
@@ -101,7 +100,7 @@ namespace TagTool.Commands.Sounds
             int maxPermutationSampleCount = 0;
 
             if (pitchRangeCount <= 0)
-                Log.Warning("Pitch range count cannot be less than 1! Proceeding with SingleLayer import.");
+                new TagToolWarning("Pitch range count cannot be less than 1! Proceeding with SingleLayer import.");
             if (pitchRangeCount <= 1)
                 Definition.ImportType = ImportType.SingleLayer;
             else
@@ -149,10 +148,10 @@ namespace TagTool.Commands.Sounds
                 var pitchRange = new PitchRange
                 {
                     ImportName = new StringId(5221),   //|default|
-                    XsyncFlags = -1,
+                    RuntimePermutationFlags = -1,
                     RuntimeDiscardedPermutationIndex = -1,
                     RuntimeLastPermutationIndex = -1,
-                    RuntimeUsablePermutationCount = (sbyte)permutationCount,
+                    PermutationCount = (short)permutationCount,
                     PitchRangeParameters = new PitchRangeParameter()
                 };
                 pitchRange.PitchRangeParameters.PlaybackBendBounds = new Bounds<short>(-32768, 32767);
@@ -292,14 +291,14 @@ namespace TagTool.Commands.Sounds
 
                     var perm = new Permutation
                     {
-                        ImportName = StringId.Empty,
+                        ImportName = StringId.Invalid,
                         SampleCount = (uint)sampleCount
                     };
 
-                    perm.RawInfoIndex = (short)i;
+                    perm.PermutationNumber = (uint)i;
 
                     if (i != 0)
-                        perm.Flags = 1;
+                        perm.IsNotFirstPermutation = 1;
 
                     perm.PermutationChunks = new List<PermutationChunk>();
 
@@ -324,8 +323,8 @@ namespace TagTool.Commands.Sounds
                 Definition.PitchRanges.Add(pitchRange);
             }
 
-            Definition.MaximumPlayTime = (int)(1000 * (double)maxPermutationSampleCount / (Definition.SampleRate.GetSampleRateHz()));
-            Definition.TotalSampleCount = (uint)totalSampleCount;
+            Definition.Promotion.LongestPermutationDuration = (uint)(1000 * (double)maxPermutationSampleCount / (Definition.SampleRate.GetSampleRateHz()));
+            Definition.Promotion.TotalSampleSize = (uint)totalSampleCount;
 
 
             // remove extra info for now
@@ -372,7 +371,7 @@ namespace TagTool.Commands.Sounds
                 case 6:
                     return EncodingValue._51Surround;
                 default:
-                    Log.Warning("Invalid channel count, using stereo.");
+                    new TagToolWarning("Invalid channel count, using stereo.");
                     return EncodingValue.Stereo;
             }
         }
@@ -390,7 +389,7 @@ namespace TagTool.Commands.Sounds
                 case 6:
                     return EncodingValue._51Surround;
                 default:
-                    Log.Warning("Invalid channel count, using stereo.");
+                    new TagToolWarning("Invalid channel count, using stereo.");
                     return EncodingValue.Stereo;
             }
         }
@@ -407,7 +406,7 @@ namespace TagTool.Commands.Sounds
                 case 2:
                     return SampleRate.SampleRateValue._32khz;
                 default:
-                    Log.Warning($"Invalid sample rate, using 44100 Hz");
+                    new TagToolWarning($"Invalid sample rate, using 44100 Hz");
                     return SampleRate.SampleRateValue._44khz;
             }
         }
@@ -423,7 +422,7 @@ namespace TagTool.Commands.Sounds
                 case 32000:
                     return SampleRate.SampleRateValue._32khz;
                 default:
-                    Log.Warning("Invalid sample rate, using 44100 Hz");
+                    new TagToolWarning("Invalid sample rate, using 44100 Hz");
                     return SampleRate.SampleRateValue._44khz;
             }
         }
@@ -440,7 +439,7 @@ namespace TagTool.Commands.Sounds
                 case 2:
                     return Compression.FSB4;
                 default:
-                    Log.Error("Invalid compression identifier. Import aborted.");
+                    new TagToolError(CommandError.CustomError, "Invalid compression identifier. Import aborted.");
                     return 0;
             }
         }
@@ -459,14 +458,14 @@ namespace TagTool.Commands.Sounds
                 userInput = Console.ReadLine().Trim('"');
                 if (!File.Exists(userInput))
                 {
-                    Log.Error($"Invalid file \"{userInput}\". Import aborted.");
+                    new TagToolError(CommandError.CustomError, $"Invalid file \"{userInput}\". Import aborted.");
                     return null;
                 }
                 return userInput;
             }
             catch (Exception e)
             {
-                Log.Error($"Invalid input: {e.Message}");
+                new TagToolError(CommandError.CustomError, $"Invalid input: {e.Message}");
             }
             return null;
         }
@@ -484,7 +483,7 @@ namespace TagTool.Commands.Sounds
             }
             catch (Exception e)
             {
-                Log.Error($"Invalid input: {e.Message}");
+                new TagToolError(CommandError.CustomError, $"Invalid input: {e.Message}");
             }
             return -1;
         }

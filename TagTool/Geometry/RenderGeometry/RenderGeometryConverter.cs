@@ -11,7 +11,6 @@ using System.Linq;
 using TagTool.Commands.Common;
 using TagTool.Serialization;
 using TagTool.Havok;
-using TagTool.Extensions;
 
 namespace TagTool.Geometry
 {
@@ -64,13 +63,25 @@ namespace TagTool.Geometry
                     switch (buffer.Definition.Format)
                     {
                         case VertexBufferFormat.World:
-                            ConvertVertices(buffer.Definition.Count, inVertexStream.ReadWorldVertex, outVertexStream.WriteWorldVertex);
+                            ConvertVertices(buffer.Definition.Count, inVertexStream.ReadWorldVertex, v =>
+                            {
+                                //v.Binormal = new RealVector3d(v.Position.W, v.Tangent.W, 0); // Converted shaders use this
+                                outVertexStream.WriteWorldVertex(v);
+                            });
                             break;
                         case VertexBufferFormat.Rigid:
-                            ConvertVertices(buffer.Definition.Count, inVertexStream.ReadRigidVertex, outVertexStream.WriteRigidVertex);
+                            ConvertVertices(buffer.Definition.Count, inVertexStream.ReadRigidVertex, v =>
+                            {
+                                //v.Binormal = new RealVector3d(v.Position.W, v.Tangent.W, 0); // Converted shaders use this
+                                outVertexStream.WriteRigidVertex(v);
+                            });
                             break;
                         case VertexBufferFormat.Skinned:
-                            ConvertVertices(buffer.Definition.Count, inVertexStream.ReadSkinnedVertex, outVertexStream.WriteSkinnedVertex);
+                            ConvertVertices(buffer.Definition.Count, inVertexStream.ReadSkinnedVertex, v =>
+                            {
+                                //v.Binormal = new RealVector3d(v.Position.W, v.Tangent.W, 0); // Converted shaders use this
+                                outVertexStream.WriteSkinnedVertex(v);
+                            });
                             break;
                         case VertexBufferFormat.StaticPerPixel:
                             ConvertVertices(buffer.Definition.Count, inVertexStream.ReadStaticPerPixelData, outVertexStream.WriteStaticPerPixelData);
@@ -99,7 +110,7 @@ namespace TagTool.Geometry
                         default:
                             // Just copy the raw buffer over and pray that it works...
                             var bufferData = new byte[buffer.Definition.Data.Data.Length];
-                            inStream.ReadExactly(bufferData);
+                            inStream.Read(bufferData, 0, bufferData.Length);
                             outStream.Write(bufferData, 0, bufferData.Length);
                             break;
                     }
@@ -108,10 +119,7 @@ namespace TagTool.Geometry
             }
             return resourceDefinition;
         }
-
-        delegate void WriteVertexDelegate<TVertex>(in TVertex vertex);
-
-        private void ConvertVertices<T>(int count, Func<T> readFunc, WriteVertexDelegate<T> writeFunc)
+        private void ConvertVertices<T>(int count, Func<T> readFunc, Action<T> writeFunc)
         {
             for (var i = 0; i < count; i++)
                 writeFunc(readFunc());

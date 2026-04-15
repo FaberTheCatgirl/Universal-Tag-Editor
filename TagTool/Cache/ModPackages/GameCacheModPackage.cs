@@ -1,4 +1,5 @@
-﻿using System;
+﻿using LZ4;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -14,7 +15,6 @@ using TagTool.Tags.Resources;
 using TagTool.Cache.HaloOnline;
 using TagTool.Cache.ModPackages;
 using System.Collections;
-using TagTool.Common.Logging;
 
 namespace TagTool.Cache
 {
@@ -27,51 +27,89 @@ namespace TagTool.Cache
 
         public GameCacheHaloOnlineBase BaseCacheReference;
 
-        public GameCacheModPackage(GameCacheHaloOnlineBase baseCache, FileInfo file)
+        public GameCacheModPackage(GameCacheHaloOnlineBase baseCache, FileInfo file, bool largeResourceStream = false)
         {
             ModPackageFile = file;
-            Directory = file.Directory;
-
-            // load mod package
-            var modPackage = new ModPackage(file);
-            Init(baseCache, modPackage);
-        }
-
-        public GameCacheModPackage(GameCacheHaloOnline baseCache, ModPackage modPackage)
-        {
-            Init(baseCache, modPackage);
-        }
-
-        private void Init(GameCacheHaloOnlineBase baseCache, ModPackage modPackage)
-        {
-            BaseCacheReference = baseCache;
-            BaseModPackage = modPackage;
             Version = CacheVersion.HaloOnlineED;
             Platform = CachePlatform.Original;
+
             Endianness = EndianFormat.LittleEndian;
             Deserializer = new TagDeserializer(Version, Platform);
             Serializer = new TagSerializer(Version, Platform);
+            Directory = file.Directory;
+            BaseCacheReference = baseCache;
+
+            // load mod package
+            BaseModPackage = new ModPackage(file, unmanagedResourceStream: largeResourceStream);
+
             ResourceCaches = new ResourceCachesModPackage(this, BaseModPackage);
             StringTableHaloOnline = BaseModPackage.StringTable;
-            MapFiles = new ModPackageMapFileStorage(this);
+            SetActiveTagCache(0);
+        }
+
+        public GameCacheModPackage(GameCacheHaloOnline baseCache, bool largeResourceStream=false)
+        {
+            ModPackageFile = null;
+            Directory = null;
+
+            Version = CacheVersion.HaloOnlineED;
+            Endianness = EndianFormat.LittleEndian;
+            Platform = CachePlatform.Original;
+
+            Deserializer = new TagDeserializer(Version, Platform);
+            Serializer = new TagSerializer(Version, Platform);
+            BaseModPackage = new ModPackage(unmanagedResourceStream: largeResourceStream);
+            BaseCacheReference = baseCache;
+            ResourceCaches = new ResourceCachesModPackage(this, BaseModPackage);
+
+            // create copy of string table
+            using (var stringStream = (baseCache as GameCacheHaloOnline).StringIdCacheFile.OpenRead())
+            {
+                var newStringTable = new StringTableHaloOnline(CacheVersion.HaloOnlineED, stringStream);
+                StringTableHaloOnline = newStringTable;
+                BaseModPackage.StringTable = newStringTable;
+            }
+
 
             SetActiveTagCache(0);
         }
 
-        public override object Deserialize(Stream stream, CachedTag instance, Type type)
+        public override object Deserialize(Stream stream, CachedTag instance)
         {
+            var modStream = (ModPackageStream)stream;
+
+            var definitionType = TagCache.TagDefinitions.GetTagDefinitionType(instance.Group);
+            var modCachedTag = TagCache.GetTag(instance.Index) as CachedTagHaloOnline;
+            // deserialization can happen in the base cache if the tag in the mod pack is only a reference
+            if (modCachedTag.IsEmpty())
+            {
+                var baseInstance = BaseCacheReference.TagCache.GetTag(instance.Index);
+                return BaseCacheReference.Deserialize(modStream.BaseStream, baseInstance);
+            }
+            else
+            {
+                var context = CreateTagSerializationContext(modStream, modCachedTag);
+                return Deserializer.Deserialize(context, definitionType);
+            }
+        }
+
+        public override T Deserialize<T>(Stream stream, CachedTag instance)
+        {
+            var modStream = (ModPackageStream)stream;
+
             var modCachedTag = TagCache.GetTag(instance.Index) as CachedTagHaloOnline;
             if (modCachedTag.IsEmpty())
             {
                 var baseInstance = BaseCacheReference.TagCache.GetTag(instance.Index);
-                return BaseCacheReference.Deserialize(((ModPackageStream)stream).BaseStream, baseInstance, type);
+                return BaseCacheReference.Deserialize<T>(modStream.BaseStream, baseInstance);
             }
             else
-                return Deserializer.Deserialize(CreateTagSerializationContext(stream, modCachedTag), type);
+                return Deserializer.Deserialize<T>(CreateTagSerializationContext(stream, modCachedTag));
         }
 
         public override void Serialize(Stream stream, CachedTag instance, object definition)
         {
+            definition = ConvertResources(definition);
             Serializer.Serialize(CreateTagSerializationContext(stream, instance), definition);
         }
 
@@ -104,39 +142,38 @@ namespace TagTool.Cache
 
         public int GetCurrentTagCacheIndex() => CurrentTagCacheIndex;
 
-        public void SetActiveTagCache(int index)
+        public bool SetActiveTagCache(int index)
         {
-            if (!BaseModPackage.IsValidTagCacheIndex(index))
-                throw new ArgumentOutOfRangeException(nameof(index), index, "Invalid tag cache index");
+            if( index >= 0 && index < GetTagCacheCount())
+            {
+                CurrentTagCacheIndex = index;
+                TagCacheGenHO = new TagCacheHaloOnline(Version, BaseModPackage.TagCachesStreams[CurrentTagCacheIndex], StringTableHaloOnline, BaseModPackage.TagCacheNames[CurrentTagCacheIndex]);
+                if(GetTagCacheCount() > 1)
+                    DisplayName = BaseModPackage.Metadata.Name + $" {BaseModPackage.CacheNames[CurrentTagCacheIndex]}" + ".pak";
+                else
+                    DisplayName = BaseModPackage.Metadata.Name + ".pak";
 
-            CurrentTagCacheIndex = index;
-            TagCacheGenHO = new TagCacheHaloOnline(Version, BaseModPackage.TagCachesStreams[CurrentTagCacheIndex], StringTableHaloOnline, BaseModPackage.TagCacheNames[CurrentTagCacheIndex]);
-            if (GetTagCacheCount() > 1)
-                DisplayName = BaseModPackage.Metadata.Name + $" {BaseModPackage.CacheNames[CurrentTagCacheIndex]}" + ".pak";
+                Console.WriteLine($"Current Tag Cache: {BaseModPackage.CacheNames[CurrentTagCacheIndex]}.");
+                return true;
+            }
             else
-                DisplayName = BaseModPackage.Metadata.Name + ".pak";
-        }
-
-        public bool SaveModPackage(string filePath)
-        {
-            return SaveModPackage(new FileInfo(filePath));
+            {
+                Console.WriteLine($"Invalid tag cache index {index}, {GetTagCacheCount()} tag cache available");
+                return false;
+            }
         }
 
         public bool SaveModPackage(FileInfo file)
         {
-            SaveStrings();
-            SaveTagNames();
-            BaseModPackage.DetermineMapFlags();
-
             // check for null tags
-            foreach (var tag in TagCache.TagTable)
+            foreach(var tag in TagCache.TagTable)
             {
                 if(tag == null || tag.Name == null)
                 {
                     if (tag != null)
-                        Log.Warning($"Tag: 0x{tag.Index:X4} has no name, will crash ingame!");
+                        new TagToolWarning($"Tag: 0x{tag.Index:X4} has no name, will crash ingame!");
                     else
-                        Log.Warning($"null tag detected.");
+                        new TagToolWarning($"null tag detected.");
 
                     return false;
                 }
@@ -149,6 +186,11 @@ namespace TagTool.Cache
         public void SetCampaignFile(Stream stream)
         {
             BaseModPackage.CampaignFileStream = stream;
+        }
+
+        public void AddMapFile(Stream mapStream, int mapId)
+        {
+            BaseModPackage.AddMap(mapStream, mapId, CurrentTagCacheIndex);
         }
 
         public override void SaveFonts(Stream fontStream)
@@ -172,6 +214,49 @@ namespace TagTool.Cache
                 BaseModPackage.Files.Add(path, file);
                 Console.WriteLine("Overwriting Existing file: " + path);
             }
+        }
+
+        private object ConvertResources(object data)
+        {
+            switch (data)
+            {
+                case PageableResource resource:
+                    return ConvertResource(resource);
+                case TagStructure tagStruct:
+                    foreach (var field in tagStruct.GetTagFieldEnumerable(Version, Platform))
+                        field.SetValue(data, ConvertResources(field.GetValue(tagStruct)));
+                    break;
+                case IList collection:
+                    for (var i = 0; i < collection.Count; i++)
+                        collection[i] = ConvertResources(collection[i]);
+                    break;
+            }
+            return data;
+        }
+           
+        private PageableResource ConvertResource(PageableResource resource)
+        {
+            resource.GetLocation(out ResourceLocation location);
+            if (location == ResourceLocation.None)
+                return resource;
+            if (location == ResourceLocation.Mods)
+                return resource;
+
+            Console.WriteLine($"Converting resource {resource.Page.Index}");
+            var rawResource = BaseCacheReference.ResourceCaches.ExtractRawResource(resource);
+            resource.ChangeLocation(ResourceLocation.Mods);
+            ResourceCaches.AddRawResource(resource, rawResource);
+            return resource;
+        }
+
+        public override bool TryGetTag(string text, out object tag)
+        {
+            return BaseCacheReference.TryGetTag(text, out tag);
+        }
+
+        public override bool TryParseGroupTag(string value, out object tag)
+        {
+            return BaseCacheReference.TryParseGroupTag(value, out tag);
         }
     }
 }

@@ -43,12 +43,7 @@ namespace TagTool.Tags.Definitions.Gen2
         /// for hf values, what frequency defines hf, from 20 to 20,000
         /// </summary>
         public float HighFrequencyReference; // Hz
-
-        [TagField(Platform = CachePlatform.MCC)]
-        public StringId ReflectionType;
-
-        [TagField(Length = 0x10, Flags = TagFieldFlags.Padding, Platform = CachePlatform.Original)]
-        [TagField(Length = 0xC, Flags = TagFieldFlags.Padding, Platform = CachePlatform.MCC)]
+        [TagField(Length = 0x10, Flags = TagFieldFlags.Padding)]
         public byte[] Padding2;
     }
 }

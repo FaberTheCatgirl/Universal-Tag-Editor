@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using TagTool.Common;
 using TagTool.Tags;
 
@@ -78,6 +77,23 @@ namespace TagTool.Cache
                     version = CacheVersion.HaloCustomEdition;
                     cachePlatform = CachePlatform.Original;
                     break;
+                // case "":
+                //     version = CacheVersion.HaloOS;
+                //     cachePlatform = CachePlatform.Original;
+                //     break;
+                case "01.12.07.0132":
+                    version = CacheVersion.Shadowrun;
+                    cachePlatform = CachePlatform.Original;
+                    break;
+                case "400":
+                case "425": // Stubbs Xbox Demo
+                    version = CacheVersion.StubbsXbox;
+                    cachePlatform = CachePlatform.Original;
+                    break;
+                case "Invader 0.44.0.r3320":
+                    version = CacheVersion.Invader;
+                    cachePlatform = CachePlatform.Original;
+                    break;
                 case "02.01.07.4998":
                     version = CacheVersion.Halo2Alpha;
                     cachePlatform = CachePlatform.Original;
@@ -94,7 +110,7 @@ namespace TagTool.Cache
                 case "11081.07.04.30.0934.main":
                 case "11091.07.05.11.1104.main":
                 case "11122.07.08.24.1808.main":
-                    version = CacheVersion.Halo2PC;
+                    version = CacheVersion.Halo2Vista;
                     cachePlatform = CachePlatform.Original;
                     break;
                 case "05241.06.09.21.1534.first_playt": // First Playtest 
@@ -428,7 +444,7 @@ namespace TagTool.Cache
                         return "02.06.28.07902";
                     case CacheVersion.Halo2Xbox:
                         return "02.09.27.09809";
-                    case CacheVersion.Halo2PC:
+                    case CacheVersion.Halo2Vista:
                         return "11081.07.04.30.0934.main";
                     case CacheVersion.Halo3Alpha:
                         return "06481.06.11.17.1330.alpha_relea";
@@ -540,7 +556,7 @@ namespace TagTool.Cache
                 case CacheVersion.Halo2Alpha:
                 case CacheVersion.Halo2Beta:
 				case CacheVersion.Halo2Xbox:
-				case CacheVersion.Halo2PC:
+				case CacheVersion.Halo2Vista:
 				case CacheVersion.HaloOnlineED:
                 case CacheVersion.HaloOnline106708:
 				case CacheVersion.HaloOnline235640:
@@ -573,63 +589,54 @@ namespace TagTool.Cache
         /// <returns></returns>
         public static bool AttributeInCacheVersion(TagFieldAttribute attr, CacheVersion compare)
         {
-            if (attr.Version != CacheVersion.Unknown && attr.Version != compare)
-                return false;
+            if (attr.Version != CacheVersion.Unknown)
+                if (attr.Version != compare)
+                    return false;
 
-            if (attr.Gen != CacheGeneration.Unknown && !IsInGen(attr.Gen, compare))
-                return false;
+            if (attr.Gen != CacheGeneration.Unknown)
+                if (!IsInGen(attr.Gen, compare))
+                    return false;
 
-            if ((attr.MinVersion != CacheVersion.Unknown || attr.MaxVersion != CacheVersion.Unknown) &&
-                !IsBetween(compare, attr.MinVersion, attr.MaxVersion))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        public static bool AttributeInCacheVersion(TagEnumMemberAttribute attr, CacheVersion compare)
-        {
-            if (attr.Version != CacheVersion.Unknown && attr.Version != compare)
-                return false;
-
-            if (attr.Gen != CacheGeneration.Unknown && !IsInGen(attr.Gen, compare))
-                return false;
-
-            if ((attr.MinVersion != CacheVersion.Unknown || attr.MaxVersion != CacheVersion.Unknown) &&
-                !IsBetween(compare, attr.MinVersion, attr.MaxVersion))
-            {
-                return false;
-            }
+            if (attr.MinVersion != CacheVersion.Unknown || attr.MaxVersion != CacheVersion.Unknown)
+                if (!IsBetween(compare, attr.MinVersion, attr.MaxVersion))
+                    return false;
 
             return true;
         }
 
         public static bool AttributeInCacheVersion(TagStructureAttribute attr, CacheVersion compare)
         {
-            if (attr.Version != CacheVersion.Unknown && attr.Version != compare)
-                return false;
+            if (attr.Version != CacheVersion.Unknown)
+                if (attr.Version != compare)
+                    return false;
 
-            if (attr.Gen != CacheGeneration.Unknown && !IsInGen(attr.Gen, compare))
-                return false;
+            if (attr.Gen != CacheGeneration.Unknown)
+                if (!IsInGen(attr.Gen, compare))
+                    return false;
 
-            if ((attr.MinVersion != CacheVersion.Unknown || attr.MaxVersion != CacheVersion.Unknown) &&
-                !IsBetween(compare, attr.MinVersion, attr.MaxVersion))
-            {
-                return false;
-            }
+            if (attr.MinVersion != CacheVersion.Unknown || attr.MaxVersion != CacheVersion.Unknown)
+                if (!IsBetween(compare, attr.MinVersion, attr.MaxVersion))
+                    return false;
 
             return true;
         }
 
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool ComparePlatform(CachePlatform platform, CachePlatform compare)
+        public static bool AttributeInPlatform(TagFieldAttribute attr, CachePlatform compare)
         {
-            if (platform == CachePlatform.All)
+            return ComparePlatform(attr.Platform, compare);
+        }
+
+        public static bool AttributeInPlatform(TagStructureAttribute attr, CachePlatform compare)
+        {
+            return ComparePlatform(attr.Platform, compare);
+        }
+
+        public static bool ComparePlatform(CachePlatform attributeCachePlatform, CachePlatform compare)
+        {
+            if (attributeCachePlatform == CachePlatform.All)
                 return true;
             else
-                return platform == compare;
+                return attributeCachePlatform == compare;
         }
 
         /// <summary>
@@ -638,7 +645,6 @@ namespace TagTool.Cache
         /// <param name="lhs">The left-hand version number.</param>
         /// <param name="rhs">The right-hand version number.</param>
         /// <returns>A positive value if the left version is newer, a negative value if the right version is newer, and 0 if the versions are equivalent.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Compare(CacheVersion lhs, CacheVersion rhs)
         {
             // Assume the enum values are in order by release date
@@ -669,7 +675,6 @@ namespace TagTool.Cache
         /// <param name="gen"></param>
         /// <param name="compare"></param>
         /// <returns></returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsInGen(CacheGeneration gen, CacheVersion compare)
         {
             if (compare == CacheVersion.Unknown || gen == CacheGeneration.Unknown)
@@ -678,7 +683,6 @@ namespace TagTool.Cache
                 return GetGeneration(compare) == gen;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool InCacheBuildType(CacheBuildType buildType, CacheVersion compare)
         {
             if (compare == CacheVersion.Unknown || buildType == CacheBuildType.Unknown)
@@ -687,7 +691,6 @@ namespace TagTool.Cache
                 return GetCacheBuildType(compare) == buildType;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static CacheBuildType GetCacheBuildType(CacheVersion version)
         {
             switch (version)
@@ -700,40 +703,10 @@ namespace TagTool.Cache
             return CacheBuildType.ReleaseBuild;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool AttributeInPlatform(TagFieldAttribute attr, CachePlatform compare)
-        {
-            return ComparePlatform(attr.Platform, compare);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool AttributeInPlatform(TagEnumMemberAttribute attr, CachePlatform compare)
-        {
-            return ComparePlatform(attr.Platform, compare);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool AttributeInPlatform(TagStructureAttribute attr, CachePlatform compare)
-        {
-            return ComparePlatform(attr.Platform, compare);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TestAttribute(TagFieldAttribute a, CacheVersion version, CachePlatform platform)
         {
             if (!InCacheBuildType(a.BuildType, version))
                 return false;
-            if (!AttributeInPlatform(a, platform))
-                return false;
-            if (!AttributeInCacheVersion(a, version))
-                return false;
-
-            return true;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool TestAttribute(TagEnumMemberAttribute a, CacheVersion version, CachePlatform platform)
-        {
             if (!IsInGen(a.Gen, version))
                 return false;
             if (!AttributeInPlatform(a, platform))
@@ -744,12 +717,14 @@ namespace TagTool.Cache
             return true;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TestAttribute(TagStructureAttribute a, CacheVersion version, CachePlatform platform)
         {
             if (!InCacheBuildType(a.BuildType, version))
-                return false;   
+                return false;
+           
             if (!AttributeInPlatform(a, platform))
+                return false;
+            if (!IsInGen(a.Gen, version))
                 return false;
             if (!AttributeInCacheVersion(a, version))
                 return false;
@@ -778,7 +753,7 @@ namespace TagTool.Cache
                     return CacheGeneration.First;
 
                 case CacheVersion.Halo2Alpha:
-                case CacheVersion.Halo2PC:
+                case CacheVersion.Halo2Vista:
                 case CacheVersion.Halo2Xbox:
                 case CacheVersion.Halo2Beta:
                     return CacheGeneration.Second;
@@ -855,7 +830,7 @@ namespace TagTool.Cache
                 case CacheVersion.Halo2Alpha:
                 case CacheVersion.Halo2Beta:
                 case CacheVersion.Halo2Xbox:
-                case CacheVersion.Halo2PC:
+                case CacheVersion.Halo2Vista:
                     return GameTitle.Halo2;
                 case CacheVersion.Halo3Alpha:
                 case CacheVersion.Halo3Beta:
@@ -896,8 +871,6 @@ namespace TagTool.Cache
                 case CacheVersion.Halo4PreRelease:
                 case CacheVersion.Halo4Tag21225:
                     return GameTitle.Halo4;
-                case CacheVersion.H2AMP:
-                    return GameTitle.H2AMP;
                 default:
                     return GameTitle.Unknown;
             }
@@ -1031,8 +1004,7 @@ namespace TagTool.Cache
         Halo4PreRelease,
         Halo4Tag21225,
         Halo2AMP,
-        Halo4MCC,
-        H2AMP
+        Halo4MCC
     }
 
     public enum CacheGeneration : int

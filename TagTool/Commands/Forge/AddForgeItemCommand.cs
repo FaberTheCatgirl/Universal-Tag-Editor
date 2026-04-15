@@ -5,7 +5,6 @@ using TagTool.Common;
 using TagTool.Commands.Common;
 using TagTool.Tags.Definitions;
 using System.Linq;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.Forge
 {
@@ -38,7 +37,7 @@ namespace TagTool.Commands.Forge
 
         public override object Execute(List<string> args)
         {
-            using (var cacheStream = Cache.OpenCacheReadWrite())
+            using (var cacheStream = Cache.OpenCacheRead())
             {
                 if (args.Count > 4 || args.Count < 2)
                     return new TagToolError(CommandError.ArgCount);
@@ -96,8 +95,7 @@ namespace TagTool.Commands.Forge
                             case 1:
                                 break;
                             default:
-                                Log.Warning("Multiple categories which this name were found. Category will be the last encountered.");
-                                return true;
+                                return new TagToolWarning("Multiple categories which this name were found. Category will be the last encountered.");
                         }
 
                         PaletteCategoryIndex = nameIndices.Last();

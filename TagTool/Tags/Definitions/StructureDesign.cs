@@ -11,8 +11,7 @@ namespace TagTool.Tags.Definitions
 {
     [TagStructure(Name = "structure_design", Tag = "sddt", Size = 0x40, MaxVersion = CacheVersion.Halo3Retail)]
     [TagStructure(Name = "structure_design", Tag = "sddt", Size = 0x44, MinVersion = CacheVersion.Halo3ODST, MaxVersion = CacheVersion.HaloOnline700123)]
-    [TagStructure(Name = "structure_design", Tag = "sddt", Size = 0x154, MinVersion = CacheVersion.HaloReach, Platform = CachePlatform.Original)]
-    [TagStructure(Name = "structure_design", Tag = "sddt", Size = 0x160, MinVersion = CacheVersion.HaloReach, Platform = CachePlatform.MCC)]
+    [TagStructure(Name = "structure_design", Tag = "sddt", Size = 0x154, MinVersion = CacheVersion.HaloReach)]
     public class StructureDesign : TagStructure
 	{
         [TagField(MinVersion = CacheVersion.HaloReach)]

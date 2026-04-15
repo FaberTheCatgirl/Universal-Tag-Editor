@@ -103,7 +103,7 @@ namespace TagTool.Commands.Editing
 
             if (index < 0)
             {
-                Console.WriteLine("TagBlock is already null.");
+                new TagToolWarning("TagBlock is already null!");
                 ContextReturn(previousContext, previousOwner, previousStructure);
                 return true;
             }

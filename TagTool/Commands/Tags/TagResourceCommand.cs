@@ -7,7 +7,6 @@ using TagTool.Commands.Common;
 using TagTool.IO;
 using TagTool.Cache.HaloOnline;
 using TagTool.Cache.Resources;
-using TagTool.Common.Logging;
 
 namespace TagTool.Commands.Tags
 {
@@ -188,7 +187,7 @@ namespace TagTool.Commands.Tags
 
             if (!outFile.Directory.Exists)
             {
-                Log.Warning($"Directory does not exist. Create it? [y/n]: ");
+                new TagToolWarning($"Directory does not exist. Create it? [y/n]: ");
 
                 switch (Console.ReadLine().ToLower())
                 {

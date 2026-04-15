@@ -6,7 +6,7 @@ using TagTool.Commands.Shaders;
 using TagTool.Common;
 using TagTool.Tags;
 using TagTool.Tags.Definitions;
-using static TagTool.Shaders.ShaderMatching.ShaderMatcher;
+using static TagTool.Shaders.ShaderMatching.ShaderMatcherNew;
 
 namespace TagTool.Shaders
 {
@@ -98,7 +98,11 @@ namespace TagTool.Shaders
                 case StringId stringId:
                     {
                         var str = sourceCache.StringTable.GetString(stringId);
-                        return destCache.StringTable.GetOrAddString(str);
+                        var destStringId = destCache.StringTable.GetStringId(str);
+                        if (stringId != StringId.Invalid && destStringId == StringId.Invalid)
+                            return destCache.StringTable.AddString(str);
+                        else
+                            return destStringId;
                     }
                 case CachedTag srcTag:
                     {

@@ -8,8 +8,6 @@ using TagTool.Commands.Common;
 using TagTool.Common;
 using TagTool.Scripting;
 using TagTool.Tags.Definitions;
-using TagTool.Common.Logging;
-using TagTool.Tags;
 
 namespace TagTool.Commands.Scenarios
 {
@@ -155,24 +153,39 @@ namespace TagTool.Commands.Scenarios
             switch (version)
             {
                 case CacheVersion.Halo3Retail:
-                    return type.ToString();
+                    return type.Halo3Retail.ToString();
 
                 case CacheVersion.Halo3ODST:
-                    return type.ToString();
+                    return type.Halo3ODST.ToString();
 
                 case CacheVersion.HaloOnlineED:
                 case CacheVersion.HaloOnline106708:
-                    return type.ToString();
+                    return type.HaloOnline.ToString();
 
                 default:
-                    Log.Warning($"No HsType found for cache \"{version}\". Defaulting to HaloOnline");
-                    return type.ToString();
+                    new TagToolWarning($"No HsType found for cache \"{version}\". Defaulting to HaloOnline");
+                    return type.HaloOnline.ToString();
             }
         }
 
         private int GetHsTypeAsInteger(CacheVersion version, HsType type)
         {
-            return VersionedEnum.ExportValue(typeof(HsType), type, Cache.Version, Cache.Platform);
+            switch (version)
+            {
+                case CacheVersion.Halo3Retail:
+                    return (int)type.Halo3Retail;
+
+                case CacheVersion.Halo3ODST:
+                    return (int)type.Halo3ODST;
+
+                case CacheVersion.HaloOnlineED:
+                case CacheVersion.HaloOnline106708:
+                    return (int)type.HaloOnline;
+
+                default:
+                    new TagToolWarning($"No HsType found for cache \"{version}\". Defaulting to HaloOnline");
+                    return (int)type.HaloOnline;
+            }
         }
 
         private void ParseScriptExpression(int index, int tabcount)
@@ -206,11 +219,11 @@ namespace TagTool.Commands.Scenarios
 
             string opcodeName = "";
 
-            if (ScriptExpressionIsValue(Definition.ScriptExpressions[index]) && Cache.ScriptDefinitions.ValueTypes.ContainsKey(Definition.ScriptExpressions[index].Opcode))
-                opcodeName = $"{Cache.ScriptDefinitions.ValueTypes[Definition.ScriptExpressions[index].Opcode]},value";
+            if (ScriptExpressionIsValue(Definition.ScriptExpressions[index]) && ScriptInfo.ValueTypes[(Cache.Version, Cache.Platform)].ContainsKey(Definition.ScriptExpressions[index].Opcode))
+                opcodeName = $"{ScriptInfo.ValueTypes[(Cache.Version, Cache.Platform)][Definition.ScriptExpressions[index].Opcode]},value";
 
-            else if (Cache.ScriptDefinitions.Scripts.ContainsKey(Definition.ScriptExpressions[index].Opcode))
-                opcodeName = Cache.ScriptDefinitions.Scripts[Definition.ScriptExpressions[index].Opcode].Name;
+            else if (ScriptInfo.Scripts[(Cache.Version, Cache.Platform)].ContainsKey(Definition.ScriptExpressions[index].Opcode))
+                opcodeName = ScriptInfo.Scripts[(Cache.Version, Cache.Platform)][Definition.ScriptExpressions[index].Opcode].Name;
 
             try
             {
@@ -219,7 +232,7 @@ namespace TagTool.Commands.Scenarios
             }
             catch (Exception)
             {
-                Log.Error("Out-of-range exception in Definition.Scripts! (?)");
+                new TagToolError(CommandError.CustomError, "Out-of-range exception in Definition.Scripts! (?)");
             }
 
             CsvAdd(tabs +

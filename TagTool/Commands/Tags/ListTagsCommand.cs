@@ -7,7 +7,6 @@ using System.Text.RegularExpressions;
 using TagTool.Cache;
 using TagTool.Commands.Common;
 using TagTool.Cache.HaloOnline;
-using TagTool.Common;
 
 namespace TagTool.Commands.Tags
 {
@@ -53,7 +52,7 @@ namespace TagTool.Commands.Tags
         public override object Execute(List<string> args)
         {
             var invalidArgs = new List<string>();
-            var options = (TagGroups: new List<Tag>(), Starts: "", Contains: new List<string>(), Ends: "", Is: "mixed", From: uint.MinValue, To: uint.MaxValue);
+            var options = (TagGroups: new List<string>(), Starts: "", Contains: new List<string>(), Ends: "", Is: "mixed", From: uint.MinValue, To: uint.MaxValue);
 
             // Process Args
             while (args.Count >= 1)
@@ -137,11 +136,14 @@ namespace TagTool.Commands.Tags
                     Index: tag?.Index ?? index++,
                     Offset: tag?.DefinitionOffset.ToString("X8"),
                     Name: tag?.Name,
-                    Group: tag?.Group.Tag,
+                    Group: tag?.Group.ToString(),
+                    Group4: tag?.Group?.Tag.ToString(),
                     IsMatch: true
                     );
 
-                if (options.TagGroups.Count != 0 && !tag.IsInGroup([.. options.TagGroups]))
+                if (  options.TagGroups.Count != 0 &&
+                      !options.TagGroups.Contains(data.Group4)
+                   )
                    data.IsMatch = false;
 
                 if (  (data.Name is null && (
@@ -159,7 +161,7 @@ namespace TagTool.Commands.Tags
                 if (  data.IsMatch &&
                       options.From <= data.Index && options.To >= data.Index &&
                       !(options.Is == "null" && !HasNull(data) && data.IsMatch) &&
-                      !(options.Is == "orphan" && tag != null && (tag.IsInGroup(["cfgt", "scnr"]) || dependencyList.Contains(data.Index)))
+                      !(options.Is == "orphan" && tag != null && (new string[]{ "cfgt", "scnr" }.Contains(data.Group4) || dependencyList.Contains(data.Index)))
                    )
                    Console.WriteLine("[Index: 0x{0:X4}, Offset: 0x{1}] {2}.{3}",
                        data.Index, data.Offset ?? "NULL TAG", data.Name ?? "<NULL OR EMPTY NAME>", data.Group ?? "<NULL GROUP>");

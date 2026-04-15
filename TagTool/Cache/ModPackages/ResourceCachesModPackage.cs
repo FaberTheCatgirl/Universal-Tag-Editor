@@ -6,7 +6,6 @@ using System.Security.Cryptography;
 using TagTool.Cache.HaloOnline;
 using TagTool.Cache.Resources;
 using TagTool.Common;
-using TagTool.Extensions;
 using TagTool.IO;
 using TagTool.Serialization;
 using TagTool.Tags;
@@ -77,11 +76,11 @@ namespace TagTool.Cache.ModPackages
             return base.CreateResource(resourceDefinition, location, resourceType);
         }
 
-        public override void ReplaceResource(PageableResource resource, ReadOnlySpan<byte> data)
+        public override void ReplaceResource(PageableResource resource, Stream dataStream)
         {
             RelocateResource(resource);
 
-            base.ReplaceResource(resource, data);
+            base.ReplaceResource(resource, dataStream);
         }
 
         public override void ReplaceRawResource(PageableResource resource, byte[] data)
@@ -91,34 +90,52 @@ namespace TagTool.Cache.ModPackages
             base.ReplaceRawResource(resource, data);
         }
 
-        public override void AddRawResource(PageableResource resource, ReadOnlySpan<byte> data)
+        public override void AddRawResource(PageableResource resource, byte[] data)
         {
             resource.ChangeLocation(ResourceLocation.Mods);
 
             base.AddRawResource(resource, data);
         }
 
-        public override void AddResource(PageableResource resource, ReadOnlySpan<byte> data)
+        public override void AddResource(PageableResource resource, Stream dataStream)
         {
-            ArgumentNullException.ThrowIfNull(resource);
+            // check hash of existing resources 
+            if (resource == null)
+                throw new ArgumentNullException("resource");
+            if (!dataStream.CanRead)
+                throw new ArgumentException("The input stream is not open for reading", "dataStream");
 
             // change resource location
             resource.ChangeLocation(ResourceLocation.Mods);
 
-            int dataSize = data.Length;
-            string hash = Convert.ToBase64String(SHA1.HashData(data));
+            var dataSize = (int)(dataStream.Length - dataStream.Position);
+            var data = new byte[dataSize];
+            dataStream.Read(data, 0, dataSize);
 
-            // check if a perfect resource match exists, if yes reuse it to save memory in multicache packages
-            if (ExistingResources.TryGetValue(hash, out ResourcePage existingPage) && existingPage.UncompressedBlockSize == dataSize)
+            string hash;
+            using (SHA1CryptoServiceProvider sha1 = new SHA1CryptoServiceProvider())
             {
+                hash = Convert.ToBase64String(sha1.ComputeHash(data));
+            }
+            // check if a perfect resource match exists, if yes reuse it to save memory in multicache packages
+            if (ExistingResources.ContainsKey(hash) && ExistingResources[hash].UncompressedBlockSize == dataSize)
+            {
+                var existingPage = ExistingResources[hash];
                 resource.Page = existingPage;
                 resource.DisableChecksum();
                 Debug.WriteLine("Found perfect resource match, reusing resource!");
-                return;
             }
+            else
+            {
+                ExistingResources[hash] = resource.Page;
+                var cache = GetResourceCache(ResourceLocation.Mods);
+                var stream = OpenCacheReadWrite(ResourceLocation.Mods);
 
-            base.AddResource(resource, data);
-            ExistingResources[hash] = resource.Page;
+                resource.Page.Index = cache.Add(stream, data, out uint compressedSize);
+                resource.Page.CompressedBlockSize = compressedSize;
+                resource.Page.UncompressedBlockSize = (uint)dataSize;
+                resource.DisableChecksum();
+            }
         }
 
         private static void RelocateResource(PageableResource resource)

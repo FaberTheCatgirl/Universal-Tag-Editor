@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using TagTool.BlamFile;
 using TagTool.Cache.Resources;
 using TagTool.IO;
 using TagTool.Serialization;
@@ -57,7 +56,6 @@ namespace TagTool.Cache.HaloOnline
             Serializer = new TagSerializer(Version, Platform);
           
             ResourceCaches = new ResourceCachesHaloOnline(this);
-            MapFiles = new DirectoryMapFileStorage(directory.FullName);
         }
 
         public override void SaveTagNames(string path = null)
@@ -120,6 +118,16 @@ namespace TagTool.Cache.HaloOnline
                 file.Position = 0;
                 file.CopyTo(modFileStream);
             }
+        }
+
+        public override bool TryGetTag(string text, out object tag)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override bool TryParseGroupTag(string value, out object tag)
+        {
+            throw new NotImplementedException();
         }
     }
 }

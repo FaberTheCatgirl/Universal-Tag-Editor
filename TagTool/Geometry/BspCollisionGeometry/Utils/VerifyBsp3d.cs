@@ -5,18 +5,15 @@ using System.Text;
 using System.Threading.Tasks;
 using TagTool.Common;
 
-// Suppress warning for lowercase names
-#pragma warning disable CS8981, IDE1006
-
 namespace TagTool.Geometry.BspCollisionGeometry.Utils
 {
     public class VerifyBsp3d
     {
-		private List<Leaf> Leaves = new List<Leaf>();
+		private List<leaf> Leaves = new List<leaf>();
 		public LargeCollisionBspBlock Bsp { get; set; }
 		public LargeCollisionBspBlock OldBsp { get; set; }
 		public LargeCollisionBSPBuilder Bsp_Builder { get; set; }
-		public class Leaf
+		public class leaf
 		{
 			public int immediate_parent_3dnode;
 			public List<int> node_stack = new List<int>();
@@ -92,7 +89,7 @@ namespace TagTool.Geometry.BspCollisionGeometry.Utils
 			Bsp_Builder = new LargeCollisionBSPBuilder();
 			Bsp_Builder.Bsp = Bsp;
 			for (var i = 0; i < Bsp.Bsp3dNodes.Count + 1; i++)
-				Leaves.Add(new Leaf());
+				Leaves.Add(new leaf());
 			populate_leaves(new List<int>(), 0, -1);
 			LeafMap leafmapper = new LeafMap();
 			leafmapper.Bsp_Builder = Bsp_Builder;
@@ -139,7 +136,7 @@ namespace TagTool.Geometry.BspCollisionGeometry.Utils
 			{
 				if (bsp3dnode_index == -1)
 					return true;
-				Leaf current_leaf = Leaves[bsp3dnode_index & 0x7FFFFFFF];
+				leaf current_leaf = Leaves[bsp3dnode_index & 0x7FFFFFFF];
 				current_leaf.immediate_parent_3dnode = parent_bsp3dnode_index;
 				current_leaf.node_stack = plane_designators.DeepClone();
 				current_leaf.surface_indices = leaf_collect_surfaces(bsp3dnode_index & 0x7FFFFFFF);
@@ -160,7 +157,7 @@ namespace TagTool.Geometry.BspCollisionGeometry.Utils
 		public List<int> leaf_collect_surfaces(int leaf_index)
 		{
 			List<int> surface_indices = new List<int>();
-            BspCollisionGeometry.Leaf current_leaf = Bsp.Leaves[leaf_index];
+			Leaf current_leaf = Bsp.Leaves[leaf_index];
 			for(var i = current_leaf.FirstBsp2dReference; 
 				i < current_leaf.FirstBsp2dReference + current_leaf.Bsp2dReferenceCount; i++)
             {

@@ -10,12 +10,13 @@ using TagTool.Tags.Definitions;
 using TagTool.Tags.Definitions.Common;
 using static TagTool.BlamFile.MapVariantGenerator;
 using static TagTool.Tags.Definitions.Scenario;
+using static TagTool.Tags.Definitions.Scenario.MultiplayerObjectProperties;
 
 namespace TagTool.Commands.Scenarios
 {
     public class ImportMapVariantCommand : Command
     {
-        private GameCacheHaloOnlineBase Cache;
+        private GameCache Cache;
         private CachedTag Tag;
         private Scenario Definition;
 
@@ -85,13 +86,23 @@ namespace TagTool.Commands.Scenarios
 
         private void ImportIntoMapFile(Blf mapVariantBlf)
         {
-            MapFile mapFile = Cache.MapFiles.FindByMapId(Definition.MapId);
-            if (mapFile == null)
-                throw new InvalidOperationException($"Map with id '{Definition.MapId}' not found");
+            if (Cache is GameCacheModPackage modCache)
+            {
+                var mapFileIndex = modCache.BaseModPackage.MapIds.IndexOf(Definition.MapId);
+                if (mapFileIndex == -1)
+                    throw new InvalidOperationException("Map not found in in mod package");
 
-            InjectMapVariantIntoMapFile(mapFile, mapVariantBlf);
+                InjectMapVariantIntoMapFile(modCache.BaseModPackage.MapFileStreams[mapFileIndex], mapVariantBlf);
+            }
+            else
+            {
+                var file = FindMapFileInDirectory(Definition.MapId, Cache.Directory);
+                if (file == null)
+                    throw new InvalidOperationException("Map not found in in cache directory");
 
-            Cache.MapFiles.Add(mapFile, overwrite: true);
+                using (var stream = file.Open(FileMode.Open, FileAccess.ReadWrite))
+                    InjectMapVariantIntoMapFile(stream, mapVariantBlf);
+            }
         }
 
         private void ImportIntoScenario(Blf mapVariantBlf, bool verifyScnr)
@@ -103,8 +114,29 @@ namespace TagTool.Commands.Scenarios
             }
         }
 
-        private void InjectMapVariantIntoMapFile(MapFile mapFile, Blf mapVariantBlf)
+        private FileInfo FindMapFileInDirectory(int mapId, DirectoryInfo directory)
         {
+            foreach (var file in directory.GetFiles("*.map"))
+            {
+                using (var reader = new EndianReader(file.OpenRead()))
+                {
+                    reader.BaseStream.Position = 0x2DEC;
+                    if (reader.ReadInt32() == mapId)
+                        return file;
+                }
+            }
+
+            return null;
+        }
+
+        private void InjectMapVariantIntoMapFile(Stream mapFileStream, Blf mapVariantBlf)
+        {
+            var reader = new EndianReader(mapFileStream);
+            var writer = new EndianWriter(mapFileStream);
+
+            var mapFile = new MapFile();
+            mapFile.Read(reader);
+
             if (mapFile.MapFileBlf == null)
                 throw new InvalidOperationException("Not a valid map file. Missing blf data");
 
@@ -119,6 +151,9 @@ namespace TagTool.Commands.Scenarios
             mapFile.MapFileBlf.ContentFlags |= BlfFileContentFlags.MapVariant;
             mapFile.MapFileBlf.MapVariantTagNames = mapVariantBlf.MapVariantTagNames;
             mapFile.MapFileBlf.ContentFlags |= BlfFileContentFlags.MapVariantTagNames;
+
+            writer.BaseStream.Position = 0;
+            mapFile.Write(writer);
         }
 
         private void UpdateMetadata(ContentItemMetadata metadata, BlfScenario blfScenario)

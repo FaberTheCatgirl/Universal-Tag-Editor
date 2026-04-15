@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using static TagTool.Tags.TagFieldFlags;
-using TagTool.Damage;
 
 namespace TagTool.Tags.Definitions.Gen2
 {
@@ -459,7 +458,7 @@ namespace TagTool.Tags.Definitions.Gen2
         [TagStructure(Size = 0x8)]
         public class ObjectWidgetBlock : TagStructure
         {
-            [TagField(ValidTags = new [] { "ant!","clwd","devo","whip","BooM","tdtl" })]
+            [TagField(ValidTags = new [] { "ant!","devo","whip","BooM","tdtl" })]
             public CachedTag Type;
         }
         
@@ -552,7 +551,7 @@ namespace TagTool.Tags.Definitions.Gen2
         }
         
         [Flags]
-        public enum WeaponFlagsValue : int
+        public enum WeaponFlagsValue : uint
         {
             VerticalHeatDisplay = 1 << 0,
             MutuallyExclusiveTriggers = 1 << 1,
@@ -583,9 +582,7 @@ namespace TagTool.Tags.Definitions.Gen2
             WeaponAgesWithEachKill = 1 << 26,
             WeaponUsesOldDualFireErrorCode = 1 << 27,
             PrimaryTriggerMeleeAttacks = 1 << 28,
-            CannotBeUsedByPlayer = 1 << 29,
-            PreventsCrouching = 1 << 30,        // MCC
-            UsesThirdPersonCamera = 1 << 31,    // MCC
+            CannotBeUsedByPlayer = 1 << 29
         }
         
         public enum SecondaryTriggerModeValue : short
@@ -1033,7 +1030,7 @@ namespace TagTool.Tags.Definitions.Gen2
             /// +x is forward, +z is up, +y is left
             /// </summary>
             public RealPoint3d FirstPersonOffset; // world units
-            public DamageReportingType DamageReportingType;
+            public DamageReportingTypeValue DamageReportingType;
             [TagField(Length = 0x3, Flags = TagFieldFlags.Padding)]
             public byte[] Padding1;
             [TagField(ValidTags = new [] { "proj" })]
@@ -1127,8 +1124,7 @@ namespace TagTool.Tags.Definitions.Gen2
                 CantFireWhenOthersRecovering = 1 << 10,
                 DonTClearFireBitAfterRecovering = 1 << 11,
                 StaggerFireAcrossMultipleMarkers = 1 << 12,
-                FiresLockedProjectiles = 1 << 13,
-                CanFireAtMaximumAge = 1 << 14,  // MCC
+                FiresLockedProjectiles = 1 << 13
             }
             
             public enum PredictionTypeValue : short
@@ -1151,6 +1147,52 @@ namespace TagTool.Tags.Definitions.Gen2
             {
                 Point,
                 HorizontalFan
+            }
+            
+            public enum DamageReportingTypeValue : sbyte
+            {
+                TehGuardians11,
+                FallingDamage,
+                GenericCollisionDamage,
+                GenericMeleeDamage,
+                GenericExplosion,
+                MagnumPistol,
+                PlasmaPistol,
+                Needler,
+                Smg,
+                PlasmaRifle,
+                BattleRifle,
+                Carbine,
+                Shotgun,
+                SniperRifle,
+                BeamRifle,
+                RocketLauncher,
+                FlakCannon,
+                BruteShot,
+                Disintegrator,
+                BrutePlasmaRifle,
+                EnergySword,
+                FragGrenade,
+                PlasmaGrenade,
+                FlagMeleeDamage,
+                BombMeleeDamage,
+                BombExplosionDamage,
+                BallMeleeDamage,
+                HumanTurret,
+                PlasmaTurret,
+                Banshee,
+                Ghost,
+                Mongoose,
+                Scorpion,
+                SpectreDriver,
+                SpectreGunner,
+                WarthogDriver,
+                WarthogGunner,
+                Wraith,
+                Tank,
+                SentinelBeam,
+                SentinelRpg,
+                Teleporter
             }
 
             [TagStructure(Size = 0x24)]

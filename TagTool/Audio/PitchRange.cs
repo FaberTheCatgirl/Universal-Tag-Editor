@@ -38,23 +38,19 @@ namespace TagTool.Audio
         /// </summary>
         [TagField(Gen = CacheGeneration.HaloOnline)]
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
-        public int XsyncFlags;
+        public int RuntimePermutationFlags;
 
         [TagField(Gen = CacheGeneration.HaloOnline)]
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
-        public sbyte RuntimeUsablePermutationCount;
-
-        [TagField(Gen = CacheGeneration.HaloOnline)]
-        [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
-        public byte Unknown1; // unused
-
-        [TagField(Gen = CacheGeneration.HaloOnline)]
-        [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
-        public sbyte RuntimeLastPermutationIndex; 
+        public short PermutationCount;
 
         [TagField(Gen = CacheGeneration.HaloOnline)]
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
         public sbyte RuntimeDiscardedPermutationIndex;
+
+        [TagField(Gen = CacheGeneration.HaloOnline)]
+        [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.TagsBuild)]
+        public sbyte RuntimeLastPermutationIndex;
 
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.ReleaseBuild)]
         public short EncodedPermutationDataIndex;
@@ -68,7 +64,7 @@ namespace TagTool.Audio
         [TagField(Gen = CacheGeneration.Third, BuildType = CacheBuildType.ReleaseBuild, Platform = CachePlatform.Original)]
         public ushort FirstPermutationIndex;
 
-        [TagField(MaxVersion = CacheVersion.Halo2PC)]
+        [TagField(MaxVersion = CacheVersion.Halo2Vista)]
         public short PermutationCountH2;
 
         [TagField(Platform = CachePlatform.MCC, BuildType = CacheBuildType.ReleaseBuild)]

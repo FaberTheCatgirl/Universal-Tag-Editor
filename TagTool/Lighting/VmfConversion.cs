@@ -5,7 +5,6 @@ using System.Linq;
 using TagTool.Cache;
 using TagTool.Commands.Common;
 using TagTool.Common;
-using TagTool.Common.Logging;
 using TagTool.Geometry;
 using TagTool.IO;
 using TagTool.Tags.Definitions;
@@ -24,7 +23,7 @@ namespace TagTool.Lighting
 
                 var element = Lbsp.StaticPerVertexLightingBuffers[i];
                 var vertexBuffer = renderGeometryResource.VertexBuffers[element.VertexBufferIndexReach].Definition;
-                float hdrScalar = (float)BitConverter.UInt16BitsToHalf(element.HDRScalar);
+                float hdrScalar = Half.ToHalf(element.HDRScalar);
                 var data = ConvertStaticPerVertexData(vertexBuffer.Data.Data, hdrScalar, out int vertexCount, targetVersion, targetPlatform);
                 vertexBuffer.Data = new Tags.TagData(data);
                 vertexBuffer.Count = vertexCount;
@@ -62,7 +61,7 @@ namespace TagTool.Lighting
             {
                 if (!data.Skip(data.Length / 6 * 6).Take(data.Length % 6).All(x => x == 0xCD))
                 {
-                    Log.Warning("Expected debug fill in static per vertex data!");
+                    new TagToolWarning("Expected debug fill in static per vertex data!");
                 }
             }
 
@@ -118,18 +117,18 @@ namespace TagTool.Lighting
             var dominantDirection = SphericalHarmonics.GetDominantLightDirection(sh.R, sh.G, sh.B);
             SphericalHarmonics.QudraticToLinearAndIntensity(sh, out SphericalHarmonics.SH2Probe linearShProbe, out RealRgbColor intensity);
 
-            halfsh.DominantLightDirection[0] = BitConverter.HalfToUInt16Bits((Half)dominantDirection.I);
-            halfsh.DominantLightDirection[1] = BitConverter.HalfToUInt16Bits((Half)dominantDirection.J);
-            halfsh.DominantLightDirection[2] = BitConverter.HalfToUInt16Bits((Half)dominantDirection.K);
-            halfsh.DominantLightIntensity[0] = BitConverter.HalfToUInt16Bits((Half)intensity.Red);
-            halfsh.DominantLightIntensity[1] = BitConverter.HalfToUInt16Bits((Half)intensity.Green);
-            halfsh.DominantLightIntensity[2] = BitConverter.HalfToUInt16Bits((Half)intensity.Blue);
+            halfsh.DominantLightDirection[0] = Half.GetBits((Half)dominantDirection.I);
+            halfsh.DominantLightDirection[1] = Half.GetBits((Half)dominantDirection.J);
+            halfsh.DominantLightDirection[2] = Half.GetBits((Half)dominantDirection.K);
+            halfsh.DominantLightIntensity[0] = Half.GetBits((Half)intensity.Red);
+            halfsh.DominantLightIntensity[1] = Half.GetBits((Half)intensity.Green);
+            halfsh.DominantLightIntensity[2] = Half.GetBits((Half)intensity.Blue);
 
             for (int i = 0; i < 9; i++)
             {
-                halfsh.SHRed[i] = BitConverter.HalfToUInt16Bits((Half)sh.R[i]);
-                halfsh.SHGreen[i] = BitConverter.HalfToUInt16Bits((Half)sh.G[i]);
-                halfsh.SHBlue[i] = BitConverter.HalfToUInt16Bits((Half)sh.B[i]);
+                halfsh.SHRed[i] = Half.GetBits((Half)sh.R[i]);
+                halfsh.SHGreen[i] = Half.GetBits((Half)sh.G[i]);
+                halfsh.SHBlue[i] = Half.GetBits((Half)sh.B[i]);
             }
 
             return halfsh;

@@ -27,7 +27,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteWorldVertex(in WorldVertex v)
+        public void WriteWorldVertex(WorldVertex v)
         {
             _stream.WriteFloat3(v.Position.IJK);
             _stream.WriteFloat2(v.Texcoord);
@@ -48,7 +48,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteRigidVertex(in RigidVertex v)
+        public void WriteRigidVertex(RigidVertex v)
         {
             _stream.WriteFloat3(v.Position.IJK);
             _stream.WriteFloat2(v.Texcoord);
@@ -71,7 +71,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteSkinnedVertex(in SkinnedVertex v)
+        public void WriteSkinnedVertex(SkinnedVertex v)
         {
             _stream.WriteFloat3(v.Position.IJK);
             _stream.WriteFloat2(v.Texcoord);
@@ -92,7 +92,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteParticleModelVertex(in ParticleModelVertex v)
+        public void WriteParticleModelVertex(ParticleModelVertex v)
         {
             _stream.WriteFloat3(v.Position);
             _stream.WriteFloat2(v.Texcoord);
@@ -111,7 +111,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteFlatWorldVertex(in FlatWorldVertex v)
+        public void WriteFlatWorldVertex(FlatWorldVertex v)
         {
             _stream.WriteFloat3(v.Position.IJK);
             _stream.WriteFloat2(v.Texcoord);
@@ -132,7 +132,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteFlatRigidVertex(in FlatRigidVertex v)
+        public void WriteFlatRigidVertex(FlatRigidVertex v)
         {
             _stream.WriteFloat3(v.Position.IJK);
             _stream.WriteFloat2(v.Texcoord);
@@ -155,7 +155,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteFlatSkinnedVertex(in FlatSkinnedVertex v)
+        public void WriteFlatSkinnedVertex(FlatSkinnedVertex v)
         {
             _stream.WriteFloat3(v.Position.IJK);
             _stream.WriteFloat2(v.Texcoord);
@@ -176,7 +176,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteScreenVertex(in ScreenVertex v)
+        public void WriteScreenVertex(ScreenVertex v)
         {
             _stream.WriteFloat2(v.Position);
             _stream.WriteFloat2(v.Texcoord);
@@ -192,7 +192,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteDebugVertex(in DebugVertex v)
+        public void WriteDebugVertex(DebugVertex v)
         {
             _stream.WriteFloat3(v.Position);
             _stream.WriteColor(v.Color);
@@ -208,7 +208,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteTransparentVertex(in TransparentVertex v)
+        public void WriteTransparentVertex(TransparentVertex v)
         {
             _stream.WriteFloat3(v.Position);
             _stream.WriteFloat2(v.Texcoord);
@@ -222,7 +222,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteParticleVertex(in ParticleVertex v)
+        public void WriteParticleVertex(ParticleVertex v)
         {
         }
 
@@ -242,7 +242,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteContrailVertex(in ContrailVertex v)
+        public void WriteContrailVertex(ContrailVertex v)
         {
             _stream.WriteFloat4(v.Position);
             _stream.WriteFloat16_4(v.Position2);
@@ -263,7 +263,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteLightVolumeVertex(in LightVolumeVertex v)
+        public void WriteLightVolumeVertex(LightVolumeVertex v)
         {
             _stream.WriteShort2(v.Texcoord);
         }
@@ -277,7 +277,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteChudVertexSimple(in ChudVertexSimple v)
+        public void WriteChudVertexSimple(ChudVertexSimple v)
         {
             _stream.WriteFloat2(v.Position);
             _stream.WriteFloat2(v.Texcoord);
@@ -293,7 +293,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteChudVertexFancy(in ChudVertexFancy v)
+        public void WriteChudVertexFancy(ChudVertexFancy v)
         {
             _stream.WriteFloat3(v.Position);
             _stream.WriteColor(v.Color);
@@ -313,7 +313,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteDecoratorVertex(in DecoratorVertex v)
+        public void WriteDecoratorVertex(DecoratorVertex v)
         {
             _stream.WriteFloat3(v.Position.IJK);
             _stream.WriteFloat2(v.Texcoord);
@@ -334,7 +334,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteTinyPositionVertex(in TinyPositionVertex v)
+        public void WriteTinyPositionVertex(TinyPositionVertex v)
         {
             _stream.WriteFloat3(v.Position);
             _stream.WriteUShort(v.Variant);
@@ -351,7 +351,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WritePatchyFogVertex(in PatchyFogVertex v)
+        public void WritePatchyFogVertex(PatchyFogVertex v)
         {
             _stream.WriteFloat4(v.Position);
             _stream.WriteFloat2(v.Texcoord);
@@ -380,7 +380,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteWaterVertex(in WaterVertex v)
+        public void WriteWaterVertex(WaterVertex v)
         {
             _stream.WriteFloat4(v.Position);
             _stream.WriteFloat4(v.Position2);
@@ -416,7 +416,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteRippleVertex(in RippleVertex v)
+        public void WriteRippleVertex(RippleVertex v)
         {
             _stream.WriteFloat4(v.Position);
             _stream.WriteFloat4(v.Texcoord);
@@ -438,7 +438,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteImplicitVertex(in ImplicitVertex v)
+        public void WriteImplicitVertex(ImplicitVertex v)
         {
             _stream.WriteFloat3(v.Position);
             _stream.WriteFloat2(v.Texcoord);
@@ -457,7 +457,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteBeamVertex(in BeamVertex v)
+        public void WriteBeamVertex(BeamVertex v)
         {
             _stream.WriteFloat4(v.Position);
             _stream.WriteShort4N(v.Texcoord);
@@ -481,7 +481,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteDualQuatVertex(in DualQuatVertex v)
+        public void WriteDualQuatVertex(DualQuatVertex v)
         {
             _stream.WriteFloat3(v.Position.IJK);
             _stream.WriteFloat2(v.Texcoord);
@@ -500,7 +500,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteStaticPerVertexColorData(in StaticPerVertexColorData v)
+        public void WriteStaticPerVertexColorData(StaticPerVertexColorData v)
         {
             _stream.WriteFloat3(v.Color);
         }
@@ -514,7 +514,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteStaticPerPixelData(in StaticPerPixelData v)
+        public void WriteStaticPerPixelData(StaticPerPixelData v)
         {
             // _stream.WriteFloat1(v.Texcoord);
             _stream.WriteFloat2(v.Texcoord);
@@ -532,7 +532,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteStaticPerVertexData(in StaticPerVertexData v)
+        public void WriteStaticPerVertexData(StaticPerVertexData v)
         {
             _stream.WriteColor(v.Color1);
             _stream.WriteColor(v.Color2);
@@ -549,7 +549,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteAmbientPrtData(in AmbientPrtData v)
+        public void WriteAmbientPrtData(AmbientPrtData v)
         {
             _stream.WriteFloat1(v.SHCoefficient);
         }
@@ -562,7 +562,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteLinearPrtData(in LinearPrtData v)
+        public void WriteLinearPrtData(LinearPrtData v)
         {
             _stream.WriteFloat4(v.SHCoefficients);
         }
@@ -577,7 +577,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteQuadraticPrtData(in QuadraticPrtData v)
+        public void WriteQuadraticPrtData(QuadraticPrtData v)
         {
             _stream.WriteFloat3(v.SHCoefficients1);
             _stream.WriteFloat3(v.SHCoefficients2);
@@ -602,7 +602,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteWaterTriangleIndices(in WaterTriangleIndices v)
+        public void WriteWaterTriangleIndices(WaterTriangleIndices v)
         {
             for (int i = 0; i < 3; i += 2)
             {
@@ -622,7 +622,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteWaterTesselatedParameters(in WaterTesselatedParameters v)
+        public void WriteWaterTesselatedParameters(WaterTesselatedParameters v)
         {
             _stream.WriteFloat2(v.LocalInfo);
             _stream.WriteFloat1(v.LocalInfoPadd);
@@ -644,7 +644,7 @@ namespace TagTool.Geometry
             };
         }
 
-        public void WriteWorldWaterVertex(in WorldWaterVertex v)
+        public void WriteWorldWaterVertex(WorldWaterVertex v)
         {
             _stream.WriteFloat3(v.Position.IJK);
             _stream.WriteFloat2(v.Texcoord);

@@ -117,7 +117,11 @@ namespace TagTool.Tools.Geometry
                     DefaultTranslation = node.Translation,
                     DefaultRotation = node.Rotation,
                     DefaultScale = node.Scale,
-                    Inverse = new RealMatrix4x3(inverseForward,inverseLeft,inverseUp, (-1 * node.Translation)),
+
+                    InverseForward = inverseForward,
+                    InverseLeft = inverseLeft,
+                    InverseUp = inverseUp,
+                    InversePosition = -1 * node.Translation,
 
                     DistanceFromParent = i == 0 ? 0.0f : RealPoint3d.Distance(node.Translation - Nodes[node.ParentNodeIndex].Translation)
                 });

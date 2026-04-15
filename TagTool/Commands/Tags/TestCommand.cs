@@ -79,6 +79,7 @@ namespace TagTool.Commands
             cache.Version = version;
             cache.TagCacheGenHO.Version = version;
             cache.TagCacheGenHO.Header.CreationTime = CacheVersionDetection.GetTimestamp(version);
+            cache.StringTableHaloOnline.Version = version;
             cache.Serializer = new TagSerializer(version, CachePlatform.Original);
             cache.Deserializer = new TagDeserializer(version, CachePlatform.Original);
             cache.ResourceCaches = new ResourceCachesHaloOnline(cache);

@@ -7,8 +7,7 @@ using static TagTool.Tags.TagFieldFlags;
 
 namespace TagTool.Audio
 {
-    [TagStructure(Size = 0x2C, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC, Platform = CachePlatform.Original)]
-    [TagStructure(Size = 0x14C, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC, Platform = CachePlatform.MCC)]
+    [TagStructure(Size = 0x2C, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
     [TagStructure(Size = 0xC, MinVersion = CacheVersion.Halo3Beta, MaxVersion = CacheVersion.Halo3ODST)]
     [TagStructure(Size = 0x28, MinVersion = CacheVersion.HaloOnlineED, MaxVersion = CacheVersion.HaloOnline700123)]
     [TagStructure(Size = 0x8, MinVersion = CacheVersion.HaloReach, BuildType = CacheBuildType.ReleaseBuild)]
@@ -37,12 +36,9 @@ namespace TagTool.Audio
         [TagField(MinVersion = CacheVersion.HaloReach, BuildType = CacheBuildType.TagsBuild)]
         public List<FacialAnimationLanguageBlockStruct> FacialAnimationResources;
 
-        [TagField(MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC, Length = 1, Platform = CachePlatform.Original)]
-        [TagField(MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC, Length = 8, Platform = CachePlatform.MCC)]
-        public GlobalGeometryBlockInfoStruct[] GeometryBlockInfo;
+        [TagField(MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
+        public GlobalGeometryBlockInfoStruct GeometryBlockInfo;
 
-        [TagField(MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC, Length = 0x24, Platform = CachePlatform.MCC)]
-        public byte[] PaddingGen2MCC;
 
         [TagStructure(Size = 0xC)]
         public class LanguagePermutation : TagStructure
@@ -63,14 +59,13 @@ namespace TagTool.Audio
                 [TagField(MinVersion = CacheVersion.HaloReach)]
                 public List<SoundPermutationMarkerBlock> LayerMarkers;
                 public List<SeekTableBlock> SeekTable;
-                [TagField(EnumType = typeof(short))]
-                public Compression Compression;
+                public short Compression;
                 public byte Language;
                 [TagField(Length = 1, Flags = TagFieldFlags.Padding)]
                 public byte[] Padding1;
                 public uint SampleCount;
-                public int ResourceSampleOffset;
-                public int ResourceSampleSize;
+                public uint ResourceSampleOffset;
+                public uint ResourceSampleSize;
                 [TagField(Gen = CacheGeneration.HaloOnline)]
                 public uint Unknown20;
                 [TagField(Gen = CacheGeneration.HaloOnline)]
@@ -209,7 +204,7 @@ namespace TagTool.Audio
             }
         }
 
-        [TagStructure(Size = 0x24, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2PC)]
+        [TagStructure(Size = 0x24, MinVersion = CacheVersion.Halo2Beta, MaxVersion = CacheVersion.Halo2Vista)]
         public class GlobalGeometryBlockInfoStruct : TagStructure
         {
             public int BlockOffset;
@@ -218,8 +213,7 @@ namespace TagTool.Audio
             public int ResourceDataSize;
             public List<GlobalGeometryBlockResourceBlock> Resources;
 
-            [TagField(Flags = Short)]
-            public CachedTag OwnerTag;
+            public uint Unknown1;
 
             public short OwnerTagSectionOffset;
 

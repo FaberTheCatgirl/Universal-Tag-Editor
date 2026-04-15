@@ -11,7 +11,6 @@ using TagTool.Geometry.Utils;
 using System.Threading.Tasks.Sources;
 using TagTool.Commands.Common;
 using static TagTool.Tags.Definitions.PhysicsModel;
-using TagTool.Common.Logging;
 
 namespace TagTool.Geometry.Jms
 {
@@ -114,7 +113,7 @@ namespace TagTool.Geometry.Jms
 
             int fourvectorsoffset = 0;
             if (phmo.Polyhedra.Count > 0)
-                Log.Warning("Physics model polyhedra are modified on import, and exported polyhedra will not match source assets.");
+                new TagToolWarning("Physics model polyhedra are modified on import, and exported polyhedra will not match source assets.");
             foreach(var poly in phmo.Polyhedra)
             {
                 HashSet<RealPoint3d> points = new HashSet<RealPoint3d>();

@@ -44,14 +44,9 @@ namespace TagTool.Tags
         /// <param name="groups">The group to check.</param>
         /// <returns><c>true</c> if this group is a subgroup of the other group.</returns>
         public bool BelongsTo(params TagGroup[] groups)
-		{
-			foreach (var group in groups)
-			{
-				var _groupTag = group.Tag;
-				if (Tag.Equals(_groupTag) || ParentTag.Equals(_groupTag) || GrandParentTag.Equals(_groupTag)) return true;
-			}
-			return false;
-		}
+        {
+            return BelongsTo(groups.Select(group => group.Tag).ToArray());
+        }
 
         /// <summary>
         /// Determines whether this group is a subgroup of another group.
@@ -60,12 +55,7 @@ namespace TagTool.Tags
         /// <returns><c>true</c> if this group is a subgroup of the group tag.</returns>
         public bool BelongsTo(params string[] groupTags)
         {
-			foreach (var groupTag in groupTags)
-			{
-				var _groupTag = new Tag(groupTag);
-				if (Tag.Equals(_groupTag) || ParentTag.Equals(_groupTag) || GrandParentTag.Equals(_groupTag)) return true;
-			}
-			return false;
+            return BelongsTo(groupTags.Select(groupTag => new Tag(groupTag)).ToArray());
         }
 
         /// <summary>
@@ -82,15 +72,7 @@ namespace TagTool.Tags
             return false;
         }
 
-		public bool BelongsTo(Tag groupTag)
-		{
-			if (Tag.Equals(groupTag) || ParentTag.Equals(groupTag) || GrandParentTag.Equals(groupTag))
-				return true;
-
-			return false;
-		}
-
-		public bool Equals(TagGroup other)
+        public bool Equals(TagGroup other)
         {
             if (other == null)
                 return false;
@@ -100,7 +82,7 @@ namespace TagTool.Tags
 
         public override bool Equals(object obj)
         {
-            return obj is TagGroup other && Equals(other);
+            return obj is TagGroup && Equals((TagGroup)obj);
         }
 
         public static bool operator ==(TagGroup lhs, TagGroup rhs)

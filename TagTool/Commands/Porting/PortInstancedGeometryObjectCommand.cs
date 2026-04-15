@@ -8,16 +8,14 @@ using TagTool.Commands.Common;
 using TagTool.Geometry.Utils;
 using TagTool.Tags;
 using TagTool.Tags.Definitions;
-using TagTool.Porting;
-using TagTool.Common.Logging;
+using static TagTool.Commands.Porting.PortTagCommand;
 
 namespace TagTool.Commands.Porting
 {
     class PortInstancedGeometryObjectCommand : Command
     {
-        private readonly GameCacheHaloOnlineBase HoCache;
-        private readonly GameCache BlamCache;
-        private readonly PortingContext PortContext;
+        private GameCacheHaloOnlineBase HoCache { get; }
+        private GameCache BlamCache;
         private int sbspIndex = 0;
         private bool centergeometry = true;
         private bool allunique = false;
@@ -25,7 +23,7 @@ namespace TagTool.Commands.Porting
         private string newCategoryName;
         private int globalCategoryIndex = -1;
 
-        public PortInstancedGeometryObjectCommand(GameCacheHaloOnlineBase cache, GameCache blamCache, PortingContext portContext) :
+        public PortInstancedGeometryObjectCommand(GameCacheHaloOnlineBase cache, GameCache blamCache) :
             base(true,
 
                 "PortInstancedGeometryObject",
@@ -42,21 +40,16 @@ namespace TagTool.Commands.Porting
         {
             HoCache = cache;
             BlamCache = blamCache;
-            PortContext = portContext;
         }
 
         public override object Execute(List<string> args)
         {
             var argStack = new Stack<string>(args.AsEnumerable().Reverse());
-            var filter = "";
-
-            PortingFlags portingFlags = ParsePortingFlags(argStack);
+            var portingFlags = ParsePortingFlags(argStack);
 
             using (var blamCacheStream = BlamCache.OpenCacheRead())
             using (var hoCacheStream = HoCache.OpenCacheReadWrite())
             {
-                using var portingScope = PortContext.CreateScope(portingFlags);
-
                 var blamScnr = BlamCache.Deserialize<Scenario>(blamCacheStream, BlamCache.TagCache.FindFirstInGroup("scnr"));
                 var forgeGlobals = HoCache.Deserialize<ForgeGlobalsDefinition>(hoCacheStream, HoCache.TagCache.FindFirstInGroup("forg"));
 
@@ -75,9 +68,7 @@ namespace TagTool.Commands.Porting
                 else if (argStack.Count > 0 && int.TryParse(argStack.Peek(), out var discard))
                     argStack.Pop();
 
-                CachedTag sbspTag = blamScnr.StructureBsps[sbspIndex].StructureBsp;
-                var sbspName = sbspTag.Name.Split('\\').Last();
-                var blamSbsp = BlamCache.Deserialize<ScenarioStructureBsp>(blamCacheStream, sbspTag);
+                var blamSbsp = BlamCache.Deserialize<ScenarioStructureBsp>(blamCacheStream, blamScnr.StructureBsps[sbspIndex].StructureBsp);
 
                 if (argStack.Count > 0 && argStack.Peek().ToLower() == "nocenter")
                 {
@@ -108,12 +99,6 @@ namespace TagTool.Commands.Porting
                 {
                     argStack.Pop();
                     allunique = true;
-
-                    if (argStack.Count > 0)
-                    {
-                        filter = argStack.Peek().ToLower();
-                        argStack.Pop();
-                    }
                 }
                 if (argStack.Count > 0)
                 {
@@ -156,17 +141,11 @@ namespace TagTool.Commands.Porting
                             var instance = blamSbsp.InstancedGeometryInstances[i];
                             var name = BlamCache.StringTable.GetString(instance.Name);
                             if (visitedNames.Add(name) && visitedDefinitions.Add(instance.DefinitionIndex))
-                            {
-                                if(string.IsNullOrEmpty(filter) || name.ToLower().Contains(filter))
-                                    uniqueInstances.Add((i, name));
-                            }
+                                uniqueInstances.Add((i, name));
                         }
                     }
 
-                    globalcategory = true;
-                    newCategoryName = sbspName;
-
-                    foreach (var (index, name) in uniqueInstances)
+                    foreach(var (index, name) in uniqueInstances)
                     {
                         if (BlamCache.Platform == CachePlatform.MCC && name.Contains("merged"))
                             break;
@@ -199,12 +178,10 @@ namespace TagTool.Commands.Porting
                         var categoryIndex = -1;
                         string paletteName = string.Empty;
                         string categoryName = string.Empty;
-                        var forge = false;
 
-                        if (parts.Count() > 1 && parts[1].StartsWith("forge"))
+                        if (parts.Count() > 1 && parts[1].StartsWith("forgepalette"))
                         {
                             forgeArgs = parts[1].Split(':');
-                            forge = true;
 
                             if (forgeArgs.Count() == 1)
                             {
@@ -231,36 +208,30 @@ namespace TagTool.Commands.Porting
 
                         if (index == -1)
                         {
-                            Log.Error($"Instance not found by identifier {identifier}!");
+                            new TagToolError(CommandError.OperationFailed, $"Instance not found by identifier {identifier}!");
                             continue;
                         }
                         if (desiredInstances.ContainsKey(index))
                         {
-                            Log.Error($"Instance {identifier} already selected!");
+                            new TagToolError(CommandError.OperationFailed, $"Instance {identifier} already selected!");
                             continue;
                         }
 
                         desiredInstances.Add(index, tagname);
-                        if (forge)
+                        forgeItems.Add(new ForgeGlobalsDefinition.PaletteItem()
                         {
-                            forgeItems.Add(new ForgeGlobalsDefinition.PaletteItem()
-                            {
-                                Name = paletteName,
-                                Type = ForgeGlobalsDefinition.PaletteItemType.Prop,
-                                CategoryIndex = (short)categoryIndex,
-                                DescriptionIndex = -1,
-                                MaxAllowed = (ushort)index,
-                                Object = null
-                            });
-                        }
+                            Name = paletteName,
+                            Type = ForgeGlobalsDefinition.PaletteItemType.Prop,
+                            CategoryIndex = (short)categoryIndex,
+                            DescriptionIndex = -1,
+                            MaxAllowed = (ushort)index,
+                            Object = null
+                        });
                     }
                 }
 
                 if (desiredInstances.Count < 1)
-                {
-                    Log.Warning("No qualifying instances found!");
                     return true;
-                }
 
                 if (globalcategory && newCategoryName != null)
                 {
@@ -272,29 +243,38 @@ namespace TagTool.Commands.Porting
                     });
                 }
 
-                var converter = new GeometryToObjectConverter(HoCache, hoCacheStream, BlamCache, blamCacheStream, blamScnr, sbspIndex, PortContext);
-   
+                var converter = new GeometryToObjectConverter(HoCache, hoCacheStream, BlamCache, blamCacheStream, blamScnr, sbspIndex);
+                converter.PortTag.SetFlags(portingFlags);
+
                 foreach (var kv in desiredInstances)
                 {
-                    var tag = converter.ConvertGeometry(kv.Key, kv.Value, false, centergeometry);
-
-                    foreach (var item in forgeItems)
+                    try
                     {
-                        if (item.MaxAllowed == (ushort)kv.Key && item.Object == null)
+                        var tag = converter.ConvertGeometry(kv.Key, kv.Value, false, centergeometry);
+
+                        foreach (var item in forgeItems)
                         {
-                            item.Object = tag;
-                            item.MaxAllowed = 0;
-
-                            if (item.Name == string.Empty)
+                            if (item.MaxAllowed == (ushort)kv.Key && item.Object == null)
                             {
-                                item.Name = item.Object.Name.Split('\\').Last();
-                            }
+                                item.Object = tag;
+                                item.MaxAllowed = 0;
 
-                            if (item.CategoryIndex == -1)
-                            {
-                                item.CategoryIndex = (short)(forgeGlobals.PaletteCategories.Count() - 1);
+                                if (item.Name == string.Empty)
+                                {
+                                    item.Name = item.Object.Name.Split('\\').Last();
+                                }
+
+                                if (item.CategoryIndex == -1)
+                                {
+                                    item.CategoryIndex = (short)(forgeGlobals.PaletteCategories.Count() - 1);
+                                }
                             }
                         }
+                    }
+                    finally
+                    {
+                        HoCache.SaveStrings();
+                        HoCache.SaveTagNames();
                     }
                 }
 
@@ -305,6 +285,7 @@ namespace TagTool.Commands.Porting
 
                 HoCache.Serialize(hoCacheStream, HoCache.TagCache.FindFirstInGroup("forg"), forgeGlobals);
             }
+
             return true;
         }
 

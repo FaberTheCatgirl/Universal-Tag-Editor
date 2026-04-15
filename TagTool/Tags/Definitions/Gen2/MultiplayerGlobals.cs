@@ -296,8 +296,7 @@ namespace TagTool.Tags.Definitions.Gen2
                     StartTeamNoti,
                     Telefrag,
                     _10SecsToWin,
-                    Team10SecsToWin,
-                    PreGameOver     // MCC
+                    Team10SecsToWin
                 }
                 
                 public enum AudienceValue : short

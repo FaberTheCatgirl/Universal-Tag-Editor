@@ -2,8 +2,6 @@ using TagTool.Cache;
 using System;
 using System.Collections.Generic;
 using static TagTool.Tags.TagFieldFlags;
-using static TagTool.Effects.EditableProperty;
-using static TagTool.Tags.Definitions.Effect.Event.ParticleSystem.Emitter.ParticleMovementData;
 
 namespace TagTool.Tags.Definitions
 {
@@ -48,7 +46,7 @@ namespace TagTool.Tags.Definitions
             public byte[] Padding0;
             public List<ParticleControllerParameter> Parameters;
             public int RuntimeMConstantParameters;
-            public ParticlePropertyScalar.ParticleStatesFlags RuntimeMUsedParticleStates;
+            public int RuntimeMUsedParticleStates;
 
             public enum ParticleMovementType : short
             {
@@ -69,19 +67,6 @@ namespace TagTool.Tags.Definitions
 			{
                 public int ParameterId;
                 public ParticlePropertyScalar Property;
-            }
-
-            public ParticlePropertyScalar.ParticleStatesFlags ValidateUsedStates()
-            {
-                ParticlePropertyScalar.ParticleStatesFlags usedStates = ParticlePropertyScalar.ParticleStatesFlags.None;
-
-                foreach (var parameter in Parameters)
-                {
-                    usedStates |= ParticleEditablePropertyEvaluate(parameter.Property, "ParticlePhysics",
-                        0x7FFFFFF, ParticlePropertyScalar.ParticleStates.Velocity);
-                }
-
-                return usedStates;
             }
         }
     }

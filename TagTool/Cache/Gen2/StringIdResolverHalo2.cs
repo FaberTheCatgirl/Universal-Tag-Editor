@@ -9,9 +9,9 @@ namespace TagTool.Cache
     {
         public StringIdResolverHalo2()
         {
-            LengthBits = 0;
-            SetBits = 0;
-            IndexBits = 20;
+            LengthBits = 8;
+            SetBits = 8;
+            IndexBits = 16;
         }
 
         public override int GetMinSetStringIndex()

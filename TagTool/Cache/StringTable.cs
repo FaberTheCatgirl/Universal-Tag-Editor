@@ -6,6 +6,7 @@ namespace TagTool.Cache
 {
     public abstract class StringTable : List<string>
     {
+        public CacheVersion Version;
         public StringIdResolver Resolver;
 
         public abstract StringId AddString(string newString);
@@ -13,28 +14,20 @@ namespace TagTool.Cache
         // override if required
         public virtual string GetString(StringId id)
         {
-            if (id == StringId.Invalid)
-                return null;
-            if (id == StringId.Empty)
-                return "";
-
             var index = Resolver.StringIDToIndex(id);
-            if (index >= 0 && index < Count)
+            if (index > 0 && index < Count)
                 return this[index];
             else
-                return null;
+                return "invalid";
         }
 
         public virtual StringId GetStringId(string str)
         {
-            if (str == null)
-                return StringId.Invalid;
-
             for (int i = 0; i < Count; i++)
             {
                 if (this[i] == str)
                 {
-                    return Resolver.IndexToStringID(i);
+                    return Resolver.IndexToStringID(i, Version);
                 }
             }
             return StringId.Invalid;
@@ -55,5 +48,7 @@ namespace TagTool.Cache
                 return stringId;
             return AddString(newString);
         }
+
     }
+
 }

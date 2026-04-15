@@ -20,7 +20,7 @@ namespace TagTool.Commands.Common
         public override object Execute(List<string> args)
         {
             foreach (var arg in args)
-                Console.WriteLine(string.Join(" ", args));
+                Console.Write($"{arg} ");
             
             return true;
         }

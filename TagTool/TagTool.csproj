@@ -1,30 +1,49 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{42814DEE-5A94-4901-BDA9-28AFD2D4F5AC}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>TagTool</RootNamespace>
     <AssemblyName>TagTool</AssemblyName>
-    <ApplicationIcon>TagTool.ico</ApplicationIcon>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <SatelliteResourceLanguages>none</SatelliteResourceLanguages>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
+    <RestorePackages>true</RestorePackages>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+    <TargetFrameworkProfile />
+    <IsWebBootstrapper>false</IsWebBootstrapper>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+    <PublishUrl>publish\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>TagTool.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <PlatformTarget>x86</PlatformTarget>
+    <OutputPath>bin\x86\Debug\</OutputPath>
+    <DefineConstants>DEBUG</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <NoWarn>$(NoWarn),CS0169,CS0414,CS0649,CS1591;CA1416</NoWarn>
-    <LangVersion>12</LangVersion>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    <GenerateLaunchSettingsFile>false</GenerateLaunchSettingsFile>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <DocumentationFile>obj\$(Platform)\$(ConfigurationName)\$(TargetFramework)\Documentation.xml</DocumentationFile>
-    <Deterministic>false</Deterministic>
-    <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
-    <Platforms>x86;x64</Platforms>
-    <Configuration>Release</Configuration> <!--Default value-->
-    <Platform>x64</Platform> <!--Default value-->
-	<!-- disabled for now as it does not respect DestinationSubDirectory -->
-	<AccelerateBuildsInVisualStudio>false</AccelerateBuildsInVisualStudio>
+    <NoWarn>CS1591</NoWarn>
+    <LangVersion>7.3</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
     <PlatformTarget>x86</PlatformTarget>
@@ -1712,56 +1731,113 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="TagTool.ico" />
-    <Compile Remove="Commands\Porting\PortArmorVariantCommand.cs" />
-    <None Include="Commands\Porting\PortArmorVariantCommand.cs" />
-    <Compile Remove="Commands\Tags\ConvertTagCommand.cs" />
-    <None Include="Commands\Tags\ConvertTagCommand.cs" />
-    <Compile Remove="Common\RealMatrix3x3.cs" />
-    <None Include="Common\RealMatrix3x3.cs" />
+    <None Include="App.config" />
+    <Compile Include="Commands\Porting\Gen2\PortTagGen2Command.Collision.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\data\**\*" Link="data\%(RecursiveDir)\%(FileName)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Include="..\Physics\**\*" Link="Physics\%(RecursiveDir)\%(FileName)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Include="..\Tools\**\*" Link="Tools\%(RecursiveDir)\%(FileName)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Remove="..\Tools\meshoptimizer32.dll" />
-    <None Include="..\Tools\meshoptimizer32.dll" Condition=" '$(Platform)' != 'x64' " Link="Tools\meshoptimizer.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Remove="..\Tools\meshoptimizer64.dll" />
-    <None Include="..\Tools\meshoptimizer64.dll" Condition=" '$(Platform)' == 'x64' " Link="Tools\meshoptimizer.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Remove="..\Tools\fmod.dll" />
-    <None Include="..\Tools\fmod.dll" Condition=" '$(Platform)' != 'x64' " Link="Tools\fmod.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Remove="..\Tools\fmod64.dll" />
-    <None Include="..\Tools\fmod64.dll" Condition=" '$(Platform)' == 'x64' " Link="Tools\fmod.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <Reference Include="JsonMoppNet">
+      <HintPath>..\Tools\JsonMoppNet.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MIConvexHull">
+      <HintPath>..\Tools\MIConvexHull.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System" />
+    <Reference Include="System.Data.Entity.Design" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="..\Tools\JsonMoppNet.dll" />
-    <Reference Include="..\Tools\MIConvexHull.dll" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Update="Properties\Resources.resx">
+    <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ShaderGenerator\HaloShaderGenerator\HaloShaderGenerator.csproj" />
+    <BootstrapperPackage Include=".NETFramework,Version=v4.7.1">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4.7.1 %28x86 and x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="AssimpNet" Version="5.0.0-beta1" />
-    <PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />
-    <PackageReference Include="K4os.Compression.LZ4.Streams" Version="1.3.8" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
-    <PackageReference Include="PluralizeService.Core" Version="1.2.21147.2" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Poly2Tri.NetStandard" Version="1.0.2" />
+    <ProjectReference Include="..\ShaderGenerator\HaloShaderGenerator\HaloShaderGenerator.csproj">
+      <Project>{17bfeffb-1619-4647-ba40-3cd1d87fd774}</Project>
+      <Name>HaloShaderGenerator</Name>
+      <Private>False</Private>
+    </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <PackageReference Include="AssimpNet">
+      <Version>4.1.0</Version>
+    </PackageReference>
+    <PackageReference Include="lz4net">
+      <Version>1.0.15.93</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting">
+      <Version>4.6.0</Version>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json">
+      <Version>13.0.3</Version>
+    </PackageReference>
+    <PackageReference Include="Poly2Tri.NetStandard">
+      <Version>1.0.2</Version>
+    </PackageReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ItemDefinitionGroup>
     <ReferenceCopyLocalPaths>
       <DestinationSubDirectory>Tools\</DestinationSubDirectory>
     </ReferenceCopyLocalPaths>
   </ItemDefinitionGroup>
   <PropertyGroup>
+    <PostBuildEvent>cd $(ProjectDir)$(OutDir)
+xcopy "$(ProjectDir)..\Physics" "Physics" /e /i /h /Y /d
+xcopy "$(ProjectDir)..\Tools" "Tools" /e /i /h /Y /d
+xcopy "$(ProjectDir)..\ShaderGenerator\HaloShaderGenerator\bin\x64\$(ConfigurationName)" "Tools" /e /i /h /Y /d
+
+IF "$(PlatformName)" == "x64" (
+    del "Tools\meshoptimizer32.dll"
+    ren "Tools\meshoptimizer64.dll" meshoptimizer.dll
+    del "Tools\fmod.dll"
+    ren "Tools\fmod64.dll" fmod.dll
+) ELSE (
+    del "Tools\meshoptimizer64.dll"
+    ren "Tools\meshoptimizer32.dll" meshoptimizer.dll
+    del "Tools\fmod64.dll"
+)
+
+:: md  "Tools\scripting"
+:: for /f "eol=: delims=" %25%25F in ('dir /b^|find "System"') do move /Y "%25%25F" "Tools\scripting"
+:: for /f "eol=: delims=" %25%25F in ('dir /b^|find "Microsoft.CodeAnalysis"') do move /Y "%25%25F" "Tools\scripting"
+
+cd $(ProjectDir)
+if ERRORLEVEL == 0 (
+    xcopy "$(ProjectDir)..\Tools\HaloShaderGenerator.dll" "$(ProjectDir)$(OutDir)" /e /i /h /Y /d 2&gt;nul 1&gt;nul
+    SET ERRORLEVEL=0
+)
+EXIT %25ERRORLEVEL%25</PostBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup>
+    <PreBuildEvent>
+    </PreBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup>
     <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
   </PropertyGroup>
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
   <Target Name="RemoveSatelliteAssemblies" AfterTargets="ResolveAssemblyReferences">
     <ItemGroup>
       <ReferenceCopyLocalPaths Remove="@(ReferenceSatellitePaths)" />

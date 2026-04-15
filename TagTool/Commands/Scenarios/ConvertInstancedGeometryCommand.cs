@@ -11,7 +11,6 @@ using TagTool.Geometry;
 using TagTool.Tags;
 using TagTool.Tags.Resources;
 using TagTool.Geometry.Utils;
-using TagTool.Porting;
 
 namespace TagTool.Commands.Scenarios
 {
@@ -104,8 +103,7 @@ namespace TagTool.Commands.Scenarios
                 if (desiredInstances.Count < 1)
                     return true;
 
-                using var portContext = PortingContext.Create(HoCache, HoCache);
-                var converter = new GeometryToObjectConverter(HoCache, hoCacheStream, HoCache, hoCacheStream, Scnr, sbspIndex, portContext);
+                var converter = new GeometryToObjectConverter(HoCache, hoCacheStream, HoCache, hoCacheStream, Scnr, sbspIndex);
 
                 foreach (var kv in desiredInstances)
                 {

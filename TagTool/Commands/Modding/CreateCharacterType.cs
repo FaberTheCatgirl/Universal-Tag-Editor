@@ -263,7 +263,7 @@ namespace TagTool.Commands.Modding
             string value = Console.ReadLine().Trim();
 
             if (value == "\n" || value == "skip")
-                return StringId.Empty;
+                return StringId.Invalid;
 
             return GetStringId(value);
         }
@@ -271,11 +271,12 @@ namespace TagTool.Commands.Modding
         private StringId GetStringId(string value)
         {
             StringId stringId = Cache.StringTable.GetStringId(value);
-            if (stringId == StringId.Invalid)
+            if (stringId == StringId.Invalid && value != Cache.StringTable.GetString(StringId.Invalid))
             {
                 stringId = Cache.StringTable.AddString(value);
                 Cache.SaveStrings();
             }
+
             return stringId;
         }
 

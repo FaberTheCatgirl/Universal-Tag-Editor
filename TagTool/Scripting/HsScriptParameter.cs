@@ -7,7 +7,6 @@ namespace TagTool.Scripting
 	{
         [TagField(Length = 32)]
         public string Name;
-        [TagField(EnumType = typeof(ushort))]
         public HsType Type;
         public short Unknown;
     }
