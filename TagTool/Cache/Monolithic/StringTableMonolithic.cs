@@ -40,11 +40,6 @@ namespace TagTool.Cache.Monolithic
             }
         }
 
-        public override object GetString(object name)
-        {
-            throw new System.NotImplementedException();
-        }
-
         public override StringId GetStringId(string str)
         {
             lock (Mutex)

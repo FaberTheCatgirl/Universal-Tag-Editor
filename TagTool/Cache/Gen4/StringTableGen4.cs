@@ -128,10 +128,5 @@ namespace TagTool.Cache.Gen4
         {
             throw new NotImplementedException();
         }
-
-        public override object GetString(object name)
-        {
-            throw new NotImplementedException();
-        }
     }
 }

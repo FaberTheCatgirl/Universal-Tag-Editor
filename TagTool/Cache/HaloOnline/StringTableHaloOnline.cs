@@ -166,10 +166,5 @@ namespace TagTool.Cache.HaloOnline
         {
             return str.Remove(0, "string_id_".Length);
         }
-
-        public override object GetString(object name)
-        {
-            throw new NotImplementedException();
-        }
     }
 }
